@@ -423,6 +423,33 @@ button.val:focus-visible{outline:2px solid var(--ui-primary); outline-offset:2px
 }
 .mini.frame::after{left:8%; bottom:15%; width:38%; height:8%; border-radius:2px; opacity:.85}
 
+/* 取景器 HUD：内缩取景框 + 中心准星 */
+.mini.hud::before{
+  content:""; position:absolute; inset:6px;
+  border:1px solid var(--ui-primary); border-radius:2px; opacity:.45;
+}
+.mini.hud::after{
+  left:50%; top:50%; width:7px; height:7px; margin:-3.5px 0 0 -3.5px;
+  border-radius:50%; opacity:.9;
+}
+/* 胶片竖边：右侧窄带 */
+.mini.edge::after{left:auto; right:0; top:0; bottom:0; width:15%; height:auto;
+  border-radius:0 4px 4px 0; opacity:.6}
+/* 胶片齿孔：上下片基带 */
+.mini.film::before{
+  content:""; position:absolute; left:0; right:0; top:0; height:23%;
+  border-radius:4px 4px 0 0; background:var(--text-3); opacity:.55;
+}
+.mini.film::after{left:0; right:0; bottom:0; width:auto; height:29%;
+  border-radius:0 0 4px 4px; opacity:.5}
+/* 美术馆装裱：米白卡纸 + 内缩照片 + 展签线 */
+.mini.gallery{background:#EFEAE0; border-color:var(--border-strong)}
+.mini.gallery::before{
+  content:""; position:absolute; left:12%; right:12%; top:10%; height:46%;
+  border-radius:2px; background:#6E7787; opacity:.5;
+}
+.mini.gallery::after{left:30%; bottom:11%; width:40%; height:6%; border-radius:1px; opacity:.8}
+
 /* 九宫格定位 */
 .pos-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:6px}
 .pos-grid button{

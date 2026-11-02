@@ -111,7 +111,8 @@ const ck = (name, cond) => { if (cond) { pass++; console.log(`  PASS  ${name}`);
   ck('卡片外沿没有白色描边', edge.samples > 10 && edge.maxEdge < 0.06);
 
   /* ---------- 4. 白色边框版式 ---------- */
-  ck('版式按钮共 5 个', await ev(`document.querySelectorAll('.layout-btn').length`) === 5);
+  ck('版式按钮共 9 个', await ev(`document.querySelectorAll('.layout-btn').length`) === 9);
+  ck('新增四款版式入口齐全', await ev(`['film','hud','edge','gallery'].every(k=>document.querySelector('.layout-btn[data-layout="'+k+'"]'))`));
   await click('.layout-btn[data-layout="frame"]');
   ck('版式已切到 frame', await ev(`cfg.layout`) === 'frame');
   ck('白色边框宽度控件出现', await ev(`!document.querySelector('[data-lay="frame"]').hidden`));
@@ -211,7 +212,49 @@ const ck = (name, cond) => { if (cond) { pass++; console.log(`  PASS  ${name}`);
   ck('竖构图题注上下都留白（未溢出）', port.topRoom >= 4 && port.bottomRoom >= 4);
   ck('竖构图题注左对齐照片边缘', Math.abs(port.inkLeft - port.side) <= 2);
 
-  /* ---------- 8. 旧配置迁移：1.00× → 1.50×，cornerTicks 丢弃 ---------- */
+  /* ---------- 8. 四款风格化版式 ---------- */
+  const styles = JSON.parse(await ev(`(()=>{
+    const f = state.files[state.cur];
+    const { W, H } = orientedSize(f);
+    const out = {};
+    for (const lay of ['film','hud','edge','gallery']) {
+      const c = Object.assign({}, cfg, { layout: lay });
+      const g = Render.frameGeom(c, W, H);
+      out[lay] = { outW: g.outW, outH: g.outH, framed: !!g.framed };
+    }
+    // 各版式实绘一次：画布必须有非空白像素，且不抛异常
+    const drawn = {};
+    for (const lay of ['film','hud','edge','gallery']) {
+      const c = Object.assign({}, cfg, { layout: lay });
+      const g = Render.frameGeom(c, W, H);
+      const k = 800 / g.outW;
+      const cv = document.createElement('canvas');
+      cv.width = Math.round(g.outW * k); cv.height = Math.round(g.outH * k);
+      const x = cv.getContext('2d');
+      x.fillStyle = '#8A8F98'; x.fillRect(0, 0, cv.width, cv.height);
+      Render.drawImageOriented(x, f.img, f.info.orientation, W * k, H * k);
+      Render.draw(x, cv.width, cv.height, c, buildInfo(f), { brand: brandFor(f), logo: logoImg(brandFor(f)) },
+        { photo: { x: 0, y: 0, w: Math.round(W * k), h: Math.round(H * k) } });
+      const d = x.getImageData(0, 0, cv.width, cv.height).data;
+      let ink = 0;
+      for (let i = 0; i < d.length; i += 40) {
+        // 纯灰底之外的颜色算「画了东西」，深色带也算
+        if (Math.abs(d[i] - 0x8A) > 12 || Math.abs(d[i + 1] - 0x8F) > 12) ink++;
+      }
+      drawn[lay] = ink;
+    }
+    return JSON.stringify({ geo: out, ink: drawn, photoW: W, photoH: H });
+  })()`));
+  const sg = styles.geo;
+  ck('四款新版式均不改画布（除 gallery）',
+    sg.film.outW === styles.photoW && sg.hud.outW === styles.photoW && sg.edge.outW === styles.photoW);
+  ck('gallery 扩画布且标记为 framed', sg.gallery.framed === true && sg.gallery.outW > styles.photoW);
+  ck('gallery 底部展签区高 > 侧边卡纸', sg.gallery.outH - styles.photoH > sg.gallery.outW - styles.photoW);
+  for (const lay of ['film', 'hud', 'edge', 'gallery']) {
+    ck(`${lay} 实际绘制出内容（${styles.ink[lay]} 个采样点）`, styles.ink[lay] > 20);
+  }
+
+  /* ---------- 9. 旧配置迁移：1.00× → 1.50×，cornerTicks 丢弃 ---------- */
   const mig = JSON.parse(await ev(`(()=>{
     localStorage.setItem('ecw.cfg.v4', JSON.stringify({layout:'card',fontScale:1,cornerTicks:true,copyright:'© 2026 珠海领行科技'}));
     const c = loadCfg();

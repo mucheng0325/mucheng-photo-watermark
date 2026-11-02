@@ -4,6 +4,10 @@
  * 因此九宫格任意位置、任意版式下的视觉尺寸/间距完全一致。
  * 白框版式会在照片外围加一圈白色边框，并扩大输出画布 —— 尺寸由 frameGeom() 先行给出。
  * 全部尺寸以照片宽度为基准等比缩放，预览(缩小)与导出(原图)结果一致。
+ *
+ * v3.1 新增四款风格化版式（film / hud / edge / gallery）：
+ *   前三款是「贴边绘制」，自己排布文字、不吃内容块几何，但字号/颜色/主题色照旧生效；
+ *   gallery 与 frame 同属「扩画布」家族，走 frameGeom 的 framed 分支。
  * ============================================ */
 
 const Render = (() => {
@@ -69,14 +73,39 @@ const Render = (() => {
   const FRAME_SIDE = 0.03;      // 白边宽度默认值（相对照片宽度）
   const FRAME_BOTTOM = 2.6;     // 底部留白 = 白边宽 × 该倍数
 
+  const GALLERY_SIDE = 0.062;   // 美术馆卡纸：左右/上 边宽（相对照片宽度）
+  const GALLERY_BOTTOM = 2.35;  // 底部卡纸 = 侧宽 × 该倍数
+
+  /** 扩画布类版式（白框 / 美术馆）的卡纸底色 */
+  function matColor(cfg, layout) {
+    if (layout === 'gallery') return cfg.galleryColor || '#F5F1E9';
+    return cfg.frameColor || '#FFFFFF';
+  }
+
   function frameGeom(cfg, W, H) {
     const c = cfg || {};
-    if ((c.layout || 'card') !== 'frame') {
+    const layout = c.layout || 'card';
+
+    // 美术馆装裱：全套卡纸，底部留给展签
+    if (layout === 'gallery') {
+      const pct = Math.max(0.02, Math.min(0.16, c.galleryPad == null ? GALLERY_SIDE : c.galleryPad));
+      const side = Math.max(2, Math.round(W * pct));
+      const bottom = Math.max(side + 2, Math.round(side * GALLERY_BOTTOM));
+      return {
+        framed: true, gallery: true, bg: matColor(c, 'gallery'),
+        side, bottom, outW: W + side * 2, outH: H + side + bottom, w: W, h: H
+      };
+    }
+
+    if (layout !== 'frame') {
       return { framed: false, side: 0, bottom: 0, outW: W, outH: H, w: W, h: H };
     }
     const side = Math.max(1, Math.round(W * (c.framePct == null ? FRAME_SIDE : c.framePct)));
     const bottom = Math.max(side + 2, Math.round(side * (c.frameBottomMul == null ? FRAME_BOTTOM : c.frameBottomMul)));
-    return { framed: true, side, bottom, outW: W + side * 2, outH: H + side + bottom, w: W, h: H };
+    return {
+      framed: true, bg: matColor(c, 'frame'),
+      side, bottom, outW: W + side * 2, outH: H + side + bottom, w: W, h: H
+    };
   }
 
   /** 相对亮度（0 暗 → 1 亮），用于白框上的墨色判断 */
@@ -91,8 +120,8 @@ const Render = (() => {
   }
 
   /** 白框版式：白底上的白字/白标识会直接消失，自动换成深色墨；投影在白底上是脏的 */
-  function inkOnFrame(cfg) {
-    const bg = cfg.frameColor || '#FFFFFF';
+  function inkOnFrame(cfg, bgOverride) {
+    const bg = bgOverride || matColor(cfg, (cfg.layout || 'card'));
     if (lumOf(bg) < 0.5) return cfg;                 // 深色边框按用户配色原样来
     const out = Object.assign({}, cfg);
     if (lumOf(cfg.textColor || '#FFFFFF') > 0.4) out.textColor = '#16181D';
@@ -117,8 +146,8 @@ const Render = (() => {
     const opt = opts || {};
     const photo = opt.photo || { x: 0, y: 0, w: W, h: H };
     const layout = cfg.layout || 'card';
-    const framed = layout === 'frame';
-    const E = framed ? inkOnFrame(cfg) : cfg;
+    const framed = layout === 'frame' || layout === 'gallery';
+    const E = framed ? inkOnFrame(cfg, matColor(cfg, layout)) : cfg;
 
     UI = resolveFamily(E.fontFamily);
     if (Brands.setFont) Brands.setFont(UI);
@@ -164,6 +193,10 @@ const Render = (() => {
     else if (layout === 'side') drawSide(ctx, M, C);
     else if (layout === 'minimal') drawMinimal(ctx, M, C);
     else if (layout === 'frame') drawFrame(ctx, M, C);
+    else if (layout === 'film') drawFilm(ctx, M, C);
+    else if (layout === 'hud') drawHud(ctx, M, C);
+    else if (layout === 'edge') drawFilmEdge(ctx, M, C);
+    else if (layout === 'gallery') drawGallery(ctx, M, C);
     else drawCard(ctx, M, C);
     ctx.restore();
   }
@@ -183,9 +216,11 @@ const Render = (() => {
   }
 
   function textWithSpacing(ctx, text, x, y, spacing) {
-    if (!('letterSpacing' in ctx)) { ctx.fillText(text, x, y); return; }
+    // 字距为 0 时不要碰 letterSpacing：Chrome 会因此切换文本整形路径，
+    // 有阴影时阴影仍按默认字距绘制，白字上就出现错位重影。
+    if (!spacing || !('letterSpacing' in ctx)) { ctx.fillText(text, x, y); return; }
     const old = ctx.letterSpacing;
-    ctx.letterSpacing = `${spacing || 0}px`;
+    ctx.letterSpacing = `${spacing}px`;
     ctx.fillText(text, x, y);
     ctx.letterSpacing = old || '0px';
   }
@@ -489,6 +524,275 @@ const Render = (() => {
     const x = z === 'l' ? 0 : z === 'r' ? M.W - C.w : (M.W - C.w) / 2;
     const y = (stripH - C.h) / 2;
     drawContent(ctx, Math.round((M.ox || 0) + x + M.dx), Math.round(stripY + y + M.dy), C, M, 0.94);
+  }
+
+  /* ================= 风格化版式 =================
+   * 下面四款自己排布文字，不套用内容块几何；
+   * 取景/贴边类（film / hud / edge）是满幅绘制，gallery 是扩画布绘制。
+   * ============================================= */
+
+  /** 带内文字：统一处理字重、字距、对齐与投影 */
+  function bandText(ctx, t, x, y, o) {
+    if (!t) return;
+    ctx.save();
+    ctx.font = font(o.size, !!o.mono, o.weight || 500);
+    ctx.fillStyle = o.color || '#fff';
+    ctx.textAlign = o.align || 'left';
+    ctx.textBaseline = 'alphabetic';
+    if (o.shadow) { ctx.shadowColor = 'rgba(0,0,0,.55)'; ctx.shadowBlur = o.shadow; }
+    textWithSpacing(ctx, t, x, y, o.track || 0);
+    ctx.restore();
+  }
+
+  // ---------- 版式 F：胶片齿孔 ----------
+  // 上下各一条片基带：文字行贴画面、发丝线分层、齿孔走外沿
+  function drawFilm(ctx, M, C) {
+    const W = M.W, H = M.H;
+    const base = '#171310';
+    const ink = 'rgba(228,221,207,.84)';
+    const edge = M.accent;
+
+    const topH = Math.round(Math.max(H * 0.105, M.fs(58)));
+    const botH = Math.round(Math.max(H * 0.145, M.fs(84)));
+
+    ctx.save();
+    ctx.translate(M.ox || 0, M.oy || 0);
+
+    ctx.fillStyle = base;
+    ctx.fillRect(0, 0, W, topH);
+    ctx.fillRect(0, H - botH, W, botH);
+    ctx.fillStyle = 'rgba(255,255,255,.07)';
+    ctx.fillRect(0, topH - 1, W, 1);
+    ctx.fillRect(0, H - botH, W, 1);
+
+    // 齿孔：贴带子外沿，宽度:间距 ≈ 1:0.86（接近真 35mm 一帧的孔距）
+    const ph = Math.max(4, Math.round(Math.min(topH * 0.33, M.fs(24))));
+    const pw = Math.round(ph * 1.42);
+    const gap = Math.round(pw * 0.86);
+    const step = pw + gap;
+    const n = Math.max(1, Math.floor(W / step));
+    const x0 = (W - (n * step - gap)) / 2;
+    const pad = Math.round(ph * 0.42);
+    ctx.fillStyle = ink;
+    for (let i = 0; i < n; i++) {
+      const x = x0 + i * step;
+      rr(ctx, x, topH - ph - pad, pw, ph, ph * 0.2); ctx.fill();
+      rr(ctx, x, H - ph - pad, pw, ph, ph * 0.2); ctx.fill();
+    }
+
+    const track = M.fs(1.5) * (1 + (M.cfg.textTrack || 0) * 0.5);   // 字距随画幅缩放，不能写死 px
+    const padX = Math.max(M.fs(14), W * 0.022);
+
+    // 上带：品牌（左）+ 机型（右），文字行在上、发丝线居中、齿孔贴外沿
+    const t1y = Math.round(topH * 0.44);
+    bandText(ctx, (M.brand.name || 'PHOTO').toUpperCase(), padX, t1y,
+      { size: M.fs(14), color: edge, mono: true, weight: 500, track: track * 1.6 });
+    bandText(ctx, M.modelText, W - padX, t1y,
+      { size: M.fs(13), color: 'rgba(243,235,220,.92)', mono: true, weight: 600, align: 'right', track: track * 1.2 });
+    ctx.fillStyle = 'rgba(255,255,255,.12)';
+    ctx.fillRect(0, Math.round(topH * 0.50), W, 1);
+
+    // 下带：参数（大）在上、发丝线居中、齿孔贴外沿
+    const t2y = H - botH + Math.round(botH * 0.36);
+    bandText(ctx, M.paramText, padX, t2y,
+      { size: M.fs(30), color: '#F5EFE3', mono: true, weight: 500, track: track * 0.6 });
+    bandText(ctx, M.copyright || (M.modelText ? '' : M.brand.name), W - padX, t2y - M.fs(4),
+      { size: M.fs(14), color: 'rgba(238,231,218,.62)', mono: true, align: 'right', track: track });
+    ctx.fillStyle = 'rgba(255,255,255,.12)';
+    ctx.fillRect(0, H - botH + Math.round(botH * 0.62), W, 1);
+
+    ctx.restore();
+  }
+
+  // ---------- 版式 G：取景器 HUD ----------
+  // 四角取景框 + 中心准星 + 顶部水平仪 + 底部刻度尺，靠径向暗角托底
+  function drawHud(ctx, M, C) {
+    const W = M.W, H = M.H;
+    const A = M.accent;
+    const cfg = M.cfg;
+
+    ctx.save();
+    ctx.translate(M.ox || 0, M.oy || 0);
+
+    // 暗角 + 底部压暗：纯线稿压在亮背景上会糊掉，必须有底衬
+    if (cfg.bgStyle !== 'none') {
+      const op = cfg.opacity == null ? 0.55 : cfg.opacity;
+      const g = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.26, W / 2, H / 2, Math.max(W, H) * 0.74);
+      g.addColorStop(0, 'rgba(0,0,0,0)');
+      g.addColorStop(1, `rgba(0,0,0,${(0.28 * op / 0.55).toFixed(3)})`);
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, W, H);
+
+      const bgh = Math.round(H * 0.24);
+      const g2 = ctx.createLinearGradient(0, H - bgh, 0, H);
+      g2.addColorStop(0, 'rgba(2,4,8,0)');
+      g2.addColorStop(0.5, `rgba(2,4,8,${(0.42 * op / 0.55).toFixed(3)})`);
+      g2.addColorStop(1, `rgba(2,4,8,${(0.72 * op / 0.55).toFixed(3)})`);
+      ctx.fillStyle = g2;
+      ctx.fillRect(0, H - bgh, W, bgh);
+    }
+
+    const p = Math.max(M.pad || 0, M.fs(18));
+    const len = Math.min(W, H) * 0.062;
+    const lw = Math.max(1, M.fs(2.2));
+
+    // 四角取景框
+    ctx.save();
+    ctx.strokeStyle = Brands.hexA(A, 0.9);
+    ctx.lineWidth = lw;
+    ctx.lineCap = 'square';
+    const corners = [
+      [p, p, 1, 1], [W - p, p, -1, 1], [p, H - p, 1, -1], [W - p, H - p, -1, -1]
+    ];
+    for (const [cx, cy, sx, sy] of corners) {
+      ctx.beginPath();
+      ctx.moveTo(cx, cy + sy * len);
+      ctx.lineTo(cx, cy);
+      ctx.lineTo(cx + sx * len, cy);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // 顶部中央：水平仪 + 品牌
+    const tcx = W / 2, ty = p + Math.max(M.fs(16), 8);
+    ctx.save();
+    ctx.strokeStyle = Brands.hexA(A, 0.85);
+    ctx.lineWidth = Math.max(1, lw * 0.8);
+    ctx.beginPath(); ctx.moveTo(tcx - M.fs(26), ty); ctx.lineTo(tcx - M.fs(9), ty); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(tcx + M.fs(9), ty); ctx.lineTo(tcx + M.fs(26), ty); ctx.stroke();
+    ctx.fillStyle = Brands.hexA(A, 0.95);
+    ctx.beginPath();
+    ctx.moveTo(tcx, ty - M.fs(5));
+    ctx.lineTo(tcx - M.fs(5), ty + M.fs(4));
+    ctx.lineTo(tcx + M.fs(5), ty + M.fs(4));
+    ctx.closePath(); ctx.fill();
+    ctx.restore();
+
+    bandText(ctx, (M.brand.name || 'PHOTO').toUpperCase(), tcx, ty + M.fs(26),
+      { size: M.fs(13), color: Brands.hexA(A, 0.72), mono: true, align: 'center', track: M.fs(2.4) });
+
+    // 中心准星
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,255,255,.75)';
+    ctx.lineWidth = Math.max(1, M.fs(1.6));
+    const cr = Math.min(W, H) * 0.014;
+    ctx.beginPath(); ctx.arc(W / 2, H / 2, cr, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(W / 2 - cr * 2.4, H / 2); ctx.lineTo(W / 2 - cr * 1.3, H / 2);
+    ctx.moveTo(W / 2 + cr * 1.3, H / 2); ctx.lineTo(W / 2 + cr * 2.4, H / 2);
+    ctx.moveTo(W / 2, H / 2 - cr * 2.4); ctx.lineTo(W / 2, H / 2 - cr * 1.3);
+    ctx.moveTo(W / 2, H / 2 + cr * 1.3); ctx.lineTo(W / 2, H / 2 + cr * 2.4);
+    ctx.stroke();
+    ctx.restore();
+
+    // 底部：参数与刻度整体压在角线之上，水平内缩到角线内侧
+    const inset = p + len * 1.25;   // 躲开四角取景线的水平段
+    const by = H - p - len - Math.max(M.fs(26), 14);
+    bandText(ctx, M.paramText, inset, by,
+      { size: M.fs(26), color: '#fff', mono: true, weight: 500 });
+    const rightTxt = M.modelText || M.copyright;
+    bandText(ctx, rightTxt, W - inset, by,
+      { size: M.fs(14), color: '#fff', mono: true, weight: 600, align: 'right' });
+
+    // 参数行下的短基准线：铺满的刻度尺在杂背景上会碎成噪点，一根短线反而像信息条收边
+    const x1 = inset, x2 = W - inset, rw = x2 - x1;
+    const barW = Math.min(rw * 0.42, Math.max(M.fs(240), 120));
+    ctx.save();
+    ctx.fillStyle = Brands.hexA(A, 0.55);
+    ctx.fillRect(x1, Math.round(by + Math.max(M.fs(14), 8)), Math.round(barW), Math.max(1, M.fs(1.6)));
+    ctx.fillStyle = Brands.hexA(A, 0.95);
+    ctx.fillRect(x1, Math.round(by + Math.max(M.fs(14), 8)) - Math.round(M.fs(2)), Math.round(M.fs(26)), Math.max(1, M.fs(3.2)));
+    ctx.restore();
+
+    ctx.restore();
+  }
+
+  // ---------- 版式 H：胶片竖边 ----------
+  // 右侧窄带竖排参数，刻度走左缘，互不遮挡
+  function drawFilmEdge(ctx, M, C) {
+    const W = M.W, H = M.H;
+    const A = M.accent;
+    const bw = Math.round(Math.max(W * 0.082, M.fs(92)));
+    const x0 = W - bw;
+
+    ctx.save();
+    ctx.translate(M.ox || 0, M.oy || 0);
+
+    ctx.fillStyle = 'rgba(9,10,14,.84)';
+    ctx.fillRect(x0, 0, bw, H);
+
+    const g = ctx.createLinearGradient(x0, 0, x0 + Math.max(2, M.fs(3)), 0);
+    g.addColorStop(0, Brands.hexA(A, 0.8));
+    g.addColorStop(1, Brands.hexA(A, 0));
+    ctx.fillStyle = g;
+    ctx.fillRect(x0, 0, Math.max(2, M.fs(3)), H);
+
+    // 顶部三角标记
+    ctx.fillStyle = Brands.hexA(A, 0.95);
+    const tv = Math.max(M.fs(20), 10);
+    ctx.beginPath();
+    ctx.moveTo(x0 + bw * 0.5, M.fs(22));
+    ctx.lineTo(x0 + bw * 0.5 - tv * 0.55, M.fs(22) + tv * 0.75);
+    ctx.lineTo(x0 + bw * 0.5 + tv * 0.55, M.fs(22) + tv * 0.75);
+    ctx.closePath(); ctx.fill();
+
+    // 刻度：带子左缘，约占画面上三分之一
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,255,255,.20)';
+    ctx.lineWidth = Math.max(1, M.fs(1));
+    const tStart = Math.max(M.fs(64), 30);
+    const tStep = Math.max(M.fs(13), 7);
+    const tCount = Math.max(6, Math.floor((H * 0.34) / tStep));
+    const shortLen = Math.max(M.fs(13), 7), longLen = Math.max(M.fs(20), 10);
+    for (let i = 0; i < tCount; i++) {
+      const y = tStart + i * tStep;
+      ctx.beginPath();
+      ctx.moveTo(x0 + Math.max(M.fs(6), 3), y);
+      ctx.lineTo(x0 + (i % 5 === 0 ? longLen : shortLen), y);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // 竖排：主行靠带子右侧、副行靠左侧，两行都在带内，四周留白均衡
+    // 注意 rotate(-90) 后，负 y 方向对应画面的「向右」
+    ctx.save();
+    ctx.translate(x0 + bw * 0.58, H - Math.max(M.pad || 0, M.fs(18)));
+    ctx.rotate(-Math.PI / 2);
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.font = font(M.fs(28), true, 500);
+    ctx.fillStyle = 'rgba(240,246,255,.96)';
+    textWithSpacing(ctx, M.paramText, 0, -M.fs(7), Math.max(1, M.fs(2.4)));
+    const sub = [M.modelText, M.copyright].filter(Boolean).join('  ·  ');
+    if (sub) {
+      ctx.font = font(M.fs(14), true, 400);
+      ctx.fillStyle = 'rgba(240,246,255,.60)';
+      textWithSpacing(ctx, sub, 0, M.fs(17), Math.max(1, M.fs(1.4)));
+    }
+    ctx.restore();
+
+    ctx.restore();
+  }
+
+  // ---------- 版式 I：美术馆装裱 ----------
+  // 宽卡纸 + 底部展签；卡纸底色与墨色由 inkOnFrame 处理
+  function drawGallery(ctx, M, C) {
+    const ox = M.ox || 0, oy = M.oy || 0;
+    const stripY = oy + M.H;
+    const stripH = Math.max(1, M.outH - stripY);
+
+    const x = Math.round(ox + (M.W - C.w) / 2 + M.dx);
+    const y = Math.round(stripY + (stripH - C.h) / 2 + M.dy);
+
+    // 展签上方的细分隔线
+    const lw = Math.min(C.w * 1.3, M.W * 0.30);
+    const sepY = Math.max(stripY + stripH * 0.12, Math.round(y - Math.max(M.fs(11), 7)));
+    ctx.save();
+    ctx.fillStyle = Brands.hexA(M.cfg.textColor || '#221F1B', 0.26);
+    ctx.fillRect(Math.round(ox + (M.W - lw) / 2), sepY, Math.round(lw), Math.max(1, M.fs(1.2)));
+    ctx.restore();
+
+    drawContent(ctx, x, y, C, M, 0.94);
   }
 
   /** 按 EXIF 方向修正绘制 */

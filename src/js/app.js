@@ -17,6 +17,9 @@ const DEFAULT_CFG = {
   // 白色边框版式
   framePct: 0.03,
   frameColor: '#FFFFFF',
+  // 美术馆装裱版式
+  galleryPad: 0.062,
+  galleryColor: '#F5F1E9',
   // 字体与文字
   fontFamily: 'alibaba',
   numMono: false,
@@ -1135,7 +1138,7 @@ function paintScene(ctx, f, sc) {
   ctx.clearRect(0, 0, sc.outW, sc.outH);
   if (sc.g.framed) {
     ctx.save();
-    ctx.fillStyle = cfg.frameColor || '#FFFFFF';
+    ctx.fillStyle = sc.g.bg || cfg.frameColor || '#FFFFFF';
     ctx.fillRect(0, 0, sc.outW, sc.outH);
     ctx.restore();
   }

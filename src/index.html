@@ -149,6 +149,18 @@
               <button class="layout-btn" data-layout="minimal">
                 <span class="mini minimal"></span><em>四角极简</em>
               </button>
+              <button class="layout-btn" data-layout="hud">
+                <span class="mini hud"></span><em>取景器 HUD</em>
+              </button>
+              <button class="layout-btn" data-layout="edge">
+                <span class="mini edge"></span><em>胶片竖边</em>
+              </button>
+              <button class="layout-btn" data-layout="film">
+                <span class="mini film"></span><em>胶片齿孔</em>
+              </button>
+              <button class="layout-btn" data-layout="gallery">
+                <span class="mini gallery"></span><em>美术馆装裱</em>
+              </button>
               <button class="layout-btn wide" data-layout="frame">
                 <span class="mini frame"></span><em>白色边框 · 底部题注</em>
               </button>
@@ -159,6 +171,22 @@
             <label>白色边框宽度 <button class="val" id="vFrame" data-cfg-edit="framePct" data-fmt="pct1">3.0%</button></label>
             <input type="range" data-cfg="framePct" min="0.008" max="0.08" step="0.001" value="0.03">
             <small class="muted">照片四周加一圈白边，水印落在底部那条白边上；底部留白随边框宽度等比加高。白底上文字与 Logo 会自动转成深色，保证可读</small>
+          </div>
+
+          <div class="field" data-lay="gallery">
+            <label>卡纸宽度 <button class="val" id="vGalPad" data-cfg-edit="galleryPad" data-fmt="pct1">6.2%</button></label>
+            <input type="range" data-cfg="galleryPad" min="0.025" max="0.14" step="0.001" value="0.062">
+            <small class="muted">四周留出装裱卡纸，底部按卡纸宽度的 2.35 倍加高用于展签；照片上文字与 Logo 会自动转成深色墨</small>
+          </div>
+
+          <div class="field" data-lay="gallery">
+            <label>卡纸颜色</label>
+            <div class="color-row">
+              <label class="color-cell">
+                <input type="color" data-cfg="galleryColor" value="#F5F1E9">
+                <span>米白（默认）</span>
+              </label>
+            </div>
           </div>
 
           <div class="field">
@@ -191,7 +219,7 @@
             <small class="muted">只作用于导出图像；界面主题色在「设置」中单独配置，两者互不影响</small>
           </div>
 
-          <div class="field" data-lay="card banner side minimal">
+          <div class="field" data-lay="card banner side minimal hud">
             <label>背景样式</label>
             <div class="seg" id="bgSeg">
               <button data-cfg="bgStyle" data-val="glass" class="on">玻璃</button>
@@ -200,7 +228,7 @@
             </div>
           </div>
 
-          <div class="field" data-lay="card banner side minimal">
+          <div class="field" data-lay="card banner side minimal hud">
             <label>不透明度 <button class="val" id="vOpacity" data-cfg-edit="opacity" data-fmt="pct">55%</button></label>
             <input type="range" data-cfg="opacity" min="0" max="0.95" step="0.01" value="0.55">
           </div>
@@ -210,7 +238,7 @@
             <input type="range" data-cfg="radius" min="0" max="40" step="1" value="16">
           </div>
 
-          <div class="field" data-lay="card banner side minimal">
+          <div class="field" data-lay="card banner side minimal hud edge">
             <label>边距 <button class="val" id="vPad" data-cfg-edit="padPct" data-fmt="pct1">3.5%</button></label>
             <input type="range" data-cfg="padPct" min="0.01" max="0.12" step="0.001" value="0.035">
           </div>
@@ -688,7 +716,7 @@
       <dl class="about-list">
         <div><dt>产品名</dt><dd>暮呈照片水印工作台</dd></div>
         <div><dt>著作权人</dt><dd class="about-url">https://github.com/mucheng0325/mucheng-photo-watermark</dd></div>
-        <div><dt>版本号</dt><dd>1.1.0</dd></div>
+        <div><dt>版本号</dt><dd>1.2.0</dd></div>
         <div><dt>技术信息</dt><dd id="aboutTech">Tauri 2 · WebView2 · Canvas 合成引擎 · 本地离线</dd></div>
       </dl>
     </section>

@@ -1,6 +1,6 @@
 [package]
 name = "exif-cam"
-version = "1.1.0"
+version = "1.2.0"
 description = "暮呈照片水印工作台 —— 绿色免安装的照片 EXIF 水印工具"
 edition = "2021"
 rust-version = "1.77"
