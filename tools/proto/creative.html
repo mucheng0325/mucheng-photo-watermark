@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>暮呈照片水印工作台 · 创意版式预览</title>
+<style>
+  @font-face { font-family: PuHuiTi; src: url('../../src/fonts/PuHuiTi-400.woff2') format('woff2'); font-weight: 400; font-display: block; }
+  @font-face { font-family: PuHuiTi; src: url('../../src/fonts/PuHuiTi-500.woff2') format('woff2'); font-weight: 500; font-display: block; }
+  @font-face { font-family: PuHuiTi; src: url('../../src/fonts/PuHuiTi-600.woff2') format('woff2'); font-weight: 600; font-display: block; }
+  @font-face { font-family: PuHuiTi; src: url('../../src/fonts/PuHuiTi-700.woff2') format('woff2'); font-weight: 700; font-display: block; }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0b0d12; color: #e8edf5;
+    font-family: PuHuiTi, "Microsoft YaHei UI", sans-serif;
+    padding: 34px 40px 46px; width: 1900px; -webkit-font-smoothing: antialiased;
+  }
+  header { display: flex; align-items: baseline; gap: 16px; padding-bottom: 22px; border-bottom: 1px solid #1d2330; margin-bottom: 28px; }
+  h1 { font-size: 24px; font-weight: 600; letter-spacing: .5px; }
+  .sub { font-size: 13px; color: #6f7c91; letter-spacing: .6px; }
+  .tag { margin-left: auto; font-size: 12px; color: #35e0f0; border: 1px solid rgba(53,224,240,.35); border-radius: 99px; padding: 4px 12px; letter-spacing: .5px; }
+
+  .grid { display: grid; grid-template-columns: repeat(2, 880px); gap: 34px 40px; }
+  .cell { }
+  .shot { border-radius: 10px; overflow: hidden; background: #06080c; box-shadow: 0 10px 30px rgba(0,0,0,.55); line-height: 0; }
+  .shot canvas { display: block; width: 880px; height: auto; }
+  .meta { display: flex; align-items: baseline; gap: 10px; padding: 12px 2px 0; }
+  .no { font-size: 12px; color: #35e0f0; font-family: Consolas, monospace; letter-spacing: 1px; }
+  .name { font-size: 15px; font-weight: 600; }
+  .en { font-size: 11px; color: #5d6a7e; letter-spacing: 2px; font-family: Consolas, monospace; }
+  .note { font-size: 12.5px; color: #8492a6; padding: 5px 2px 0; line-height: 1.55; }
+  .note b { color: #b9c6d8; font-weight: 500; }
+</style>
+</head>
+<body>
+<header>
+  <h1>创意水印版式 · 提案 A</h1>
+  <span class="sub">暮呈照片水印工作台 · 与现有 5 种版式对比选型</span>
+  <span class="tag">原型预览 · 未写入主程序</span>
+</header>
+<div class="grid" id="grid"></div>
+
+<script>
+const FF = 'PuHuiTi, "Microsoft YaHei UI", sans-serif';
+const FM = '"Cascadia Mono", Consolas, "Courier New", monospace';
+const W = 880, H = 587;            // 3:2，与 demo 图一致
+
+/* ---------------- 通用小工具 ---------------- */
+function txt(ctx, s, x, y, o) {
+  o = o || {};
+  ctx.save();
+  ctx.font = `${o.weight || 400} ${o.size || 14}px ${o.family || FF}`;
+  ctx.fillStyle = o.color || '#fff';
+  ctx.textBaseline = o.baseline || 'alphabetic';
+  ctx.textAlign = o.align || 'left';
+  if (o.shadow) {
+    ctx.shadowColor = 'rgba(0,0,0,.55)';
+    ctx.shadowBlur = o.shadow === true ? 10 : o.shadow;
+    ctx.shadowOffsetY = 1;
+  }
+  if (o.track && 'letterSpacing' in ctx) ctx.letterSpacing = `${o.track}px`;
+  if (o.alpha != null) ctx.globalAlpha = o.alpha;
+  ctx.fillText(s, x, y);
+  ctx.restore();
+}
+function tw(ctx, s, size, weight, family) {
+  ctx.save();
+  ctx.font = `${weight || 400} ${size}px ${family || FF}`;
+  const w = ctx.measureText(s).width;
+  ctx.restore();
+  return w;
+}
+/** 沿圆弧排字。上半圆字头朝外，下半圆字头朝内（印章倒拱） */
+function arcText(ctx, s, cx, cy, r, center, opts) {
+  opts = opts || {};
+  ctx.save();
+  ctx.font = `${opts.weight || 500} ${opts.size || 12}px ${opts.family || FF}`;
+  const chars = [...s];
+  const wid = chars.map(c => ctx.measureText(c).width + (opts.track || 0));
+  const total = wid.reduce((a, b) => a + b, 0);
+  const span = total / r;
+  const upper = center === 'top';
+  let a = upper ? -Math.PI / 2 - span / 2 : Math.PI / 2 + span / 2;
+  const dir = upper ? 1 : -1;
+  chars.forEach((c, i) => {
+    const half = (wid[i] / 2) / r;
+    const ang = a + dir * half;
+    const x = cx + Math.cos(ang) * r, y = cy + Math.sin(ang) * r;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(ang + (upper ? Math.PI / 2 : -Math.PI / 2));
+    ctx.fillStyle = opts.color || '#fff';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    if (opts.alpha != null) ctx.globalAlpha = opts.alpha;
+    ctx.fillText(c, 0, 0);
+    ctx.restore();
+    a += dir * (wid[i] / r);
+  });
+  ctx.restore();
+}
+function coverFit(ctx, img, x, y, w, h) {
+  const k = Math.max(w / img.width, h / img.height);
+  const sw = w / k, sh = h / k;
+  ctx.drawImage(img, (img.width - sw) / 2, (img.height - sh) / 2, sw, sh, x, y, w, h);
+}
+
+/* 统一的演示参数 */
+const PARAM = 'f/2.8   1/125   ISO 400   35mm';
+const MODEL = 'NIGHT CITY / 2026';
+
+/* ================= 1. 胶片齿孔 ================= */
+function drawFilm(ctx) {
+  coverFit(ctx, IMG, 0, 0, W, H);
+  const topH = H * 0.115, botH = H * 0.155;   // 下带更厚，参数要在里面展开
+  const base = '#171310', INK = 'rgba(226,218,203,.74)', EDGE = '#EDA84C';
+
+  ctx.fillStyle = base;
+  ctx.fillRect(0, 0, W, topH);
+  ctx.fillRect(0, H - botH, W, botH);
+
+  // 极细高光收边，避免黑带像「贴上去的色块」
+  ctx.fillStyle = 'rgba(255,255,255,.07)';
+  ctx.fillRect(0, topH - 1, W, 1);
+  ctx.fillRect(0, H - botH, W, 1);
+
+  // 齿孔走带子的外沿，文字紧贴画面 —— 上半给字、下半给孔，层次不打架
+  const ph = 23, pw = 31, gap = 29, step = pw + gap;
+  const n = Math.floor(W / step);
+  const x0 = (W - (n * step - gap)) / 2;
+  for (let i = 0; i < n; i++) {
+    const x = x0 + i * step;
+    ctx.fillStyle = INK;
+    ctx.beginPath(); ctx.roundRect(x, topH - ph - 14, pw, ph, ph * 0.20); ctx.fill();
+    ctx.beginPath(); ctx.roundRect(x, H - ph - 14, pw, ph, ph * 0.20); ctx.fill();
+  }
+
+  // 上带内侧：底片边码
+  txt(ctx, 'KODAK 400NC-3   36', 24, topH - ph - 26, { size: 9, family: FM, color: EDGE, track: 2.2 });
+  txt(ctx, 'PORTRA 400', W - 24, topH - ph - 26, { size: 10, family: FM, weight: 600, color: '#F3EBDC', align: 'right', track: 2.6 });
+  // 边码与齿孔之间的发丝分隔
+  ctx.fillStyle = 'rgba(255,255,255,.09)';
+  ctx.fillRect(0, topH - ph - 19, W, 1);
+
+  // 下带内侧：参数 + 型号
+  txt(ctx, PARAM, 24, H - botH + 38, { size: 20, family: FM, weight: 500, color: '#F5EFE3', track: 1.5 });
+  txt(ctx, MODEL, W - 24, H - botH + 37, { size: 10, family: FM, color: 'rgba(238,231,218,.6)', align: 'right', track: 1.8 });
+  ctx.fillStyle = 'rgba(255,255,255,.09)';
+  ctx.fillRect(0, H - ph - 19, W, 1);
+}
+
+/* ================= 2. 取景器 HUD ================= */
+function drawHud(ctx) {
+  coverFit(ctx, IMG, 0, 0, W, H);
+
+  // 取景器暗角：亮部压下去，线框与参数才有落点
+  const vg = ctx.createRadialGradient(W / 2, H / 2, H * 0.22, W / 2, H / 2, H * 0.95);
+  vg.addColorStop(0, 'rgba(0,0,0,0)');
+  vg.addColorStop(1, 'rgba(0,0,0,.30)');
+  ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
+
+  const A = '#35E0F0', p = 34, len = 42, lw = 2;
+
+  ctx.save();
+  ctx.strokeStyle = A; ctx.lineWidth = lw; ctx.lineCap = 'square';
+  ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = 6;
+  [[p, p, 1, 1], [W - p, p, -1, 1], [p, H - p, 1, -1], [W - p, H - p, -1, -1]].forEach(([x, y, sx, sy]) => {
+    ctx.beginPath();
+    ctx.moveTo(x + sx * len, y); ctx.lineTo(x, y); ctx.lineTo(x, y + sy * len);
+    ctx.stroke();
+  });
+  ctx.restore();
+
+  // 中心十字准星
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,255,255,.75)'; ctx.lineWidth = 1.6;
+  const cx = W / 2, cy = H / 2, cr = 13;
+  ctx.beginPath();
+  ctx.moveTo(cx - cr, cy); ctx.lineTo(cx - 4, cy);
+  ctx.moveTo(cx + 4, cy); ctx.lineTo(cx + cr, cy);
+  ctx.moveTo(cx, cy - cr); ctx.lineTo(cx, cy - 4);
+  ctx.moveTo(cx, cy + 4); ctx.lineTo(cx, cy + cr);
+  ctx.stroke();
+  ctx.restore();
+
+  // 顶部水平仪：中线 + 左右刻度
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,255,255,.42)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(cx - 26, p + 12); ctx.lineTo(cx - 6, p + 12);
+  ctx.moveTo(cx + 6, p + 12); ctx.lineTo(cx + 26, p + 12); ctx.stroke();
+  ctx.fillStyle = A;
+  ctx.fillRect(cx - 1.5, p + 7, 3, 10);
+  ctx.restore();
+
+  // 左上录制点 + RAW
+  ctx.save();
+  ctx.fillStyle = '#FF5A5A';
+  ctx.beginPath(); ctx.arc(p + 6, p + 26, 4, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+  txt(ctx, 'RAW', p + 18, p + 31, { size: 11, family: FM, weight: 600, color: '#fff', track: 2.2, shadow: 8 });
+  txt(ctx, '35mm  f/2.8', W - p, p + 31, { size: 11, family: FM, color: 'rgba(255,255,255,.85)', align: 'right', track: 1.4, shadow: 8 });
+
+  // 底部再压一道，保证参数行压在灯光上也读得出来
+  const bg2 = ctx.createLinearGradient(0, H - 160, 0, H);
+  bg2.addColorStop(0, 'rgba(2,4,8,0)');
+  bg2.addColorStop(0.55, 'rgba(2,4,8,.45)');
+  bg2.addColorStop(1, 'rgba(2,4,8,.70)');
+  ctx.fillStyle = bg2; ctx.fillRect(0, H - 160, W, 160);
+
+  // 底部参数：内缩避开四角取景线
+  const by = H - p - 36;
+  txt(ctx, PARAM, p + 54, by, { size: 14, family: FM, weight: 500, color: '#fff', track: 2.4, shadow: 12 });
+  txt(ctx, '35mm', W - p - 54, by, { size: 11, family: FM, weight: 600, color: A, align: 'right', track: 1, shadow: 8 });
+
+  // 底部刻度尺（参数行下方）
+  ctx.save();
+  ctx.strokeStyle = 'rgba(53,224,240,.72)'; ctx.lineWidth = 1;
+  const x1 = p + 54, x2 = W - p - 54, rw = x2 - x1;
+  for (let i = 0; i <= 30; i++) {
+    const x = x1 + i * (rw / 30);
+    const h2 = i % 5 === 0 ? 7 : 3.5;
+    ctx.beginPath(); ctx.moveTo(x, by + 9); ctx.lineTo(x, by + 9 + h2); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/* ================= 3. 暗房印章 ================= */
+function drawStamp(ctx) {
+  coverFit(ctx, IMG, 0, 0, W, H);
+  const R = H * 0.185, cx = W - R - 62, cy = H - R - 54;
+  const A = '#F4ECDD';
+
+  // 章体下的淡暗衬：压住画面亮部，让白色章线能吃住
+  const halo = ctx.createRadialGradient(cx, cy, R * 0.55, cx, cy, R * 1.25);
+  halo.addColorStop(0, 'rgba(6,8,12,.36)');
+  halo.addColorStop(1, 'rgba(6,8,12,0)');
+  ctx.fillStyle = halo;
+  ctx.beginPath(); ctx.arc(cx, cy, R * 1.25, 0, Math.PI * 2); ctx.fill();
+
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(-7 * Math.PI / 180);
+  ctx.strokeStyle = A; ctx.fillStyle = A;
+
+  // 双环
+  ctx.globalAlpha = 0.92;
+  ctx.lineWidth = 2.8;
+  ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.stroke();
+  ctx.globalAlpha = 0.5;
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(0, 0, R * 0.845, 0, Math.PI * 2); ctx.stroke();
+
+  // 上半圆品牌
+  arcText(ctx, 'MUCHENG STUDIO', 0, 0, R * 0.905, 'top', { size: 10.5, weight: 600, color: A, track: 1.6, alpha: 0.95 });
+  // 下半圆参数（倒拱）
+  arcText(ctx, '35MM · ZHUHAI', 0, 0, R * 0.785, 'bottom', { size: 8.5, weight: 500, color: A, track: 1.2, alpha: 0.8 });
+
+  // 中心：日期 + 曝光
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.globalAlpha = 0.97;
+  ctx.font = `600 ${R * 0.33}px ${FM}`;
+  ctx.fillText('11.02', 0, -R * 0.13);
+  ctx.globalAlpha = 0.66;
+  ctx.font = `500 ${R * 0.13}px ${FM}`;
+  ctx.fillText('2026', 0, R * 0.13);
+  ctx.globalAlpha = 0.45;
+  ctx.fillRect(-R * 0.26, R * 0.30, R * 0.52, 1);
+  ctx.globalAlpha = 0.6;
+  ctx.font = `500 ${R * 0.10}px ${FM}`;
+  ctx.fillText('f/2.8  1/125  ISO400', 0, R * 0.45);
+  ctx.restore();
+}
+
+/* ================= 4. 胶片竖边 ================= */
+function drawFilmEdge(ctx) {
+  coverFit(ctx, IMG, 0, 0, W, H);
+  const bw = W * 0.088, x0 = W - bw;
+
+  ctx.fillStyle = 'rgba(9,10,14,.84)';
+  ctx.fillRect(x0, 0, bw, H);
+  // 左缘亮边
+  const g = ctx.createLinearGradient(x0, 0, x0 + 2.5, 0);
+  g.addColorStop(0, 'rgba(53,224,240,.8)');
+  g.addColorStop(1, 'rgba(53,224,240,0)');
+  ctx.fillStyle = g; ctx.fillRect(x0, 0, 2.5, H);
+
+  // 顶部三角标记
+  ctx.save();
+  ctx.fillStyle = '#35E0F0';
+  ctx.beginPath();
+  ctx.moveTo(x0 + bw / 2, 40); ctx.lineTo(x0 + bw / 2 - 7, 54); ctx.lineTo(x0 + bw / 2 + 7, 54);
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
+
+  // 刻度走带子左缘（贴画面那侧），不与竖排文字争位置
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,255,255,.14)'; ctx.lineWidth = 1;
+  for (let i = 0; i < 20; i++) {
+    const y = 74 + i * 10;
+    ctx.beginPath(); ctx.moveTo(x0 + 8, y); ctx.lineTo(x0 + (i % 5 === 0 ? 22 : 17), y); ctx.stroke();
+  }
+  ctx.restore();
+
+  // 竖排文字：基线落在带子右侧 3/4 处，字身朝内，四周留白均匀
+  ctx.save();
+  ctx.translate(x0 + bw * 0.60, H - 44);
+  ctx.rotate(-Math.PI / 2);
+  ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  if ('letterSpacing' in ctx) ctx.letterSpacing = '2.6px';
+  ctx.font = `500 16px ${FM}`;
+  ctx.fillStyle = 'rgba(240,246,255,.96)';
+  ctx.fillText(PARAM, 0, 0);
+  ctx.letterSpacing = '1.6px';
+  ctx.font = `400 9.5px ${FM}`;
+  ctx.fillStyle = 'rgba(240,246,255,.58)';
+  ctx.fillText('NIGHT CITY · 2026.11.02', 0, -26);
+  ctx.restore();
+}
+
+/* ================= 5. 美术馆装裱 ================= */
+function galleryGeom() {
+  const outW = W;
+  const padX = outW * 0.062, padTop = outW * 0.062, padBot = outW * 0.146;
+  const pw = outW - padX * 2, ph = pw / 1.5;
+  return { outW, outH: padTop + ph + padBot, padX, padTop, padBot, pw, ph };
+}
+
+function drawGallery(ctx) {
+  const G = galleryGeom();
+  ctx.fillStyle = '#F5F1E9';
+  ctx.fillRect(0, 0, G.outW, G.outH);
+  coverFit(ctx, IMG, G.padX, G.padTop, G.pw, G.ph);
+
+  // 卡纸内沿发丝线
+  ctx.save();
+  ctx.strokeStyle = 'rgba(0,0,0,.10)'; ctx.lineWidth = 1;
+  ctx.strokeRect(G.padX - 0.5, G.padTop - 0.5, G.pw + 1, G.ph + 1);
+  ctx.restore();
+
+  const cy = G.padTop + G.ph;
+  const mid = G.outW / 2;
+
+  // 分隔线
+  ctx.fillStyle = 'rgba(42,38,32,.28)';
+  ctx.fillRect(mid - 56, cy + G.padBot * 0.235, 112, 1);
+
+  // 标题（衬线，大字距）
+  txt(ctx, '城 市 夜 曲', mid, cy + G.padBot * 0.53, {
+    size: 25, weight: 500, color: '#221F1B', align: 'center', track: 5,
+    family: '"Source Han Serif SC","Noto Serif SC","Songti SC",SimSun,serif'
+  });
+
+  // 参数
+  txt(ctx, PARAM, mid, cy + G.padBot * 0.74, {
+    size: 10.5, family: FM, color: '#7A7167', align: 'center', track: 2.2
+  });
+
+  // 左右下角小字
+  txt(ctx, 'GALLERY PRINT / 2026', G.padX, cy + G.padBot * 0.90, {
+    size: 9.5, family: FM, color: '#8B8175', track: .8
+  });
+  txt(ctx, '暮呈 · 作品 012', G.outW - G.padX, cy + G.padBot * 0.90, {
+    size: 9.5, family: FM, color: '#8B8175', align: 'right', track: .8
+  });
+}
+
+/* ================= 6. 巨型幽灵字 ================= */
+function drawGhost(ctx) {
+  coverFit(ctx, IMG, 0, 0, W, H);
+  const p = 44;
+
+  // 底部压暗，保证小字可读
+  const g = ctx.createLinearGradient(0, H - 240, 0, H);
+  g.addColorStop(0, 'rgba(4,6,10,0)');
+  g.addColorStop(1, 'rgba(4,6,10,.64)');
+  ctx.fillStyle = g; ctx.fillRect(0, H - 240, W, 240);
+
+  // 巨型字：按可用宽度自适应，右侧留给参数块，避免与 f/2.8 打架
+  let big = H * 0.29;
+  ctx.save();
+  if ('letterSpacing' in ctx) ctx.letterSpacing = '-5px';
+  ctx.font = `700 ${big}px ${FF}`;
+  const capW = W - p * 2 - 132;
+  const w0 = ctx.measureText('NIGHT CITY').width;
+  if (w0 > capW) {
+    big = big * capW / w0;
+    ctx.font = `700 ${big}px ${FF}`;
+  }
+  ctx.fillStyle = 'rgba(255,255,255,.31)';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText('NIGHT CITY', p - 4, H - 22);
+  ctx.restore();
+
+  // 参数块（右下，贴基线）
+  txt(ctx, 'f/2.8', W - p, H - 148, { size: 15, family: FM, weight: 600, color: '#fff', align: 'right', track: 1.2, shadow: 10 });
+  txt(ctx, '1/125   ISO 400', W - p, H - 124, { size: 12, family: FM, color: 'rgba(255,255,255,.8)', align: 'right', track: 1 });
+  txt(ctx, '2026.11.02  35mm', W - p, H - 104, { size: 9.5, family: FM, color: 'rgba(255,255,255,.55)', align: 'right', track: 1 });
+
+  // 左下标记
+  ctx.fillStyle = '#35E0F0';
+  ctx.fillRect(p, H - 76, 26, 2.5);
+  txt(ctx, 'MUCHENG', p, H - 58, { size: 10, family: FM, weight: 600, color: 'rgba(255,255,255,.92)', track: 3.2 });
+}
+
+/* ---------------- 渲染 ---------------- */
+const CASES = [
+  { n: '01', name: '胶片齿孔', en: 'FILM STRIP', note: '上下各贴一条 35mm 胶片边，齿孔透光 + 橙色边码，还原底片扫描的质感。<b>适合旅行、胶片模拟、街拍</b>。', draw: drawFilm },
+  { n: '02', name: '取景器 HUD', en: 'VIEWFINDER', note: '四角取景框 + 中心准星 + 底部刻度尺，像从电子取景器里截下的一帧。<b>适合器材评测、科技题材</b>。', draw: drawHud },
+  { n: '03', name: '暗房印章', en: 'DARKROOM STAMP', note: '环形文字圆章压角，中心是日期与曝光，微微倾斜像手盖的戳。<b>适合人像、纪实、婚礼</b>。', draw: drawStamp },
+  { n: '04', name: '胶片竖边', en: 'FILM EDGE', note: '右侧窄带竖排参数，旋转 90° 沿边阅读，占画面最少。<b>适合竖构图、极简风</b>。', draw: drawFilmEdge },
+  { n: '05', name: '美术馆装裱', en: 'GALLERY MAT', note: '宽米白卡纸 + 居中衬线标题 + 细分隔线，像挂在展墙上的作品。<b>适合静物、作品集、打印输出</b>。', draw: drawGallery },
+  { n: '06', name: '巨型幽灵字', en: 'GHOST TYPE', note: '超大号半透明字压底出血，参数贴在基线右侧。<b>适合杂志跨页、海报、封面</b>。', draw: drawGhost }
+];
+
+const IMG = new Image();
+IMG.src = '../../src/assets/demo.jpg';
+
+IMG.onload = () => document.fonts.ready.then(async () => {
+  for (const w of [400, 500, 600, 700]) { try { await document.fonts.load(`${w} 40px PuHuiTi`); } catch (_) {} }
+  const grid = document.getElementById('grid');
+  const DPR = 2;
+
+  // ?one=03 → 只渲染单格，用于出高清单图
+  const one = new URLSearchParams(location.search).get('one');
+  const list = one ? CASES.filter(c => c.n === one) : CASES;
+  if (one) {
+    document.body.style.width = (W + 80) + 'px';
+    grid.style.gridTemplateColumns = W + 'px';
+    document.querySelector('header').style.display = 'none';
+  }
+
+  for (const c of list) {
+    const cell = document.createElement('div');
+    cell.className = 'cell';
+
+    const shot = document.createElement('div');
+    shot.className = 'shot';
+    const cv = document.createElement('canvas');
+    const tmp = document.createElement('canvas');
+    tmp.width = W; tmp.height = H;
+    const tctx = tmp.getContext('2d');
+    fakesize(tctx, c);
+
+    const outW = c.outW || W, outH = c.outH || H;
+    cv.width = outW * DPR; cv.height = outH * DPR;
+    cv.style.width = outW + 'px';
+    const ctx = cv.getContext('2d');
+    ctx.scale(DPR, DPR);
+    c.draw(ctx);
+
+    shot.appendChild(cv);
+    const meta = document.createElement('div');
+    meta.className = 'meta';
+    meta.innerHTML = `<span class="no">${c.n}</span><span class="name">${c.name}</span><span class="en">${c.en}</span>`;
+    const note = document.createElement('div');
+    note.className = 'note';
+    note.innerHTML = c.note;
+
+    cell.appendChild(shot); cell.appendChild(meta); cell.appendChild(note);
+    if (c.outW) { cell.querySelector('.shot').style.width = c.outW + 'px'; }
+    grid.appendChild(cell);
+  }
+  document.title += ' · READY';
+});
+
+/* 美术馆版式需要先知道输出尺寸，这里补上（与 galleryGeom 同源） */
+function fakesize(ctx, c) {
+  if (c.en !== 'GALLERY MAT') return;
+  const G = galleryGeom();
+  c.outW = G.outW; c.outH = G.outH;
+}
+</script>
+</body>
+</html>
