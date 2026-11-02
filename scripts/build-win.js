@@ -39,6 +39,18 @@ function rmrf(dir) {
   try { fs.rmdirSync(dir); } catch (_) {}
 }
 
+/** 清空发布目录但保留 data/ —— 里面是用户配置与 WebView 缓存，
+ *  既有保留价值，也避免一次删掉几百个缓存文件触发批量删除保护。 */
+function cleanStage(dir) {
+  if (!fs.existsSync(dir)) return;
+  for (const it of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (it.name === 'data') continue;
+    const p = path.join(dir, it.name);
+    if (it.isDirectory()) rmrf(p);
+    else { try { fs.unlinkSync(p); } catch (e) { throw new Error(`无法删除 ${p}：${e.message}（程序可能正在运行）`); } }
+  }
+}
+
 function readVersion() {
   const pkg = fs.readFileSync(path.join(TAURI, 'Cargo.toml'), 'utf8');
   const m = pkg.match(/^version\s*=\s*"([^"]+)"/m);
@@ -65,7 +77,7 @@ function readVersion() {
   if (!fs.existsSync(dll)) throw new Error(`未找到 ${dll}`);
 
   fs.mkdirSync(OUT, { recursive: true });
-  rmrf(STAGE);
+  cleanStage(STAGE);
   fs.mkdirSync(STAGE, { recursive: true });
 
   fs.copyFileSync(exe, path.join(STAGE, `${APP_NAME}.exe`));

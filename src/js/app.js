@@ -1448,14 +1448,28 @@ function buildUiSwatches() {
 /** 顶栏品牌位 Logo：内置浅/深两张，由 CSS 按 [data-theme] 切换，不提供自定义入口 */
 
 /* ---------- 滑杆数值：点击键入精确值 ---------- */
+/* f = 展示格式；e = 编辑框里的初始文本（不带单位）；p = 解析回内部值
+ * 注意 e 与 p 必须互为逆运算：编辑框里看到什么数字，就按同样的数字输回去。
+ * 百分比类内部存比例（0.03 = 3%），所以 e 要 ×100、p 要 ÷100。 */
+const numOrNull = s => {
+  const n = parseFloat(String(s).replace(/[%×\s]/g, ''));
+  return isNaN(n) ? null : n;
+};
 const VAL_FMT = {
-  pct:  { f: v => Math.round(v * 100) + '%',        p: s => { const n = parseFloat(s); return isNaN(n) ? null : n / 100; } },
-  pct1: { f: v => (v * 100).toFixed(1) + '%',       p: s => { const n = parseFloat(s); return isNaN(n) ? null : n / 100; } },
-  x2:   { f: v => (+v).toFixed(2) + '×',            p: s => { const n = parseFloat(s); return isNaN(n) ? null : n; } },
-  int:  { f: v => String(Math.round(+v)),           p: s => { const n = parseInt(s, 10); return isNaN(n) ? null : n; } },
-  f2:   { f: v => (+v).toFixed(2),                  p: s => { const n = parseFloat(s); return isNaN(n) ? null : n; } },
-  num:  { f: v => (+v) + '%',                       p: s => { const n = parseFloat(s); return isNaN(n) ? null : n; } },
-  hex:  { f: v => String(v).toUpperCase(),          p: s => { s = s.trim(); return isHexColor(s) ? s : null; } }
+  pct:  { f: v => Math.round(v * 100) + '%',  e: v => String(Math.round(v * 100)),
+          p: s => { const n = numOrNull(s); return n === null ? null : n / 100; } },
+  pct1: { f: v => (v * 100).toFixed(1) + '%', e: v => (v * 100).toFixed(1),
+          p: s => { const n = numOrNull(s); return n === null ? null : n / 100; } },
+  x2:   { f: v => (+v).toFixed(2) + '×',      e: v => (+v).toFixed(2),
+          p: s => { const n = numOrNull(s); return n === null ? null : n; } },
+  int:  { f: v => String(Math.round(+v)),     e: v => String(Math.round(+v)),
+          p: s => { const n = parseInt(s, 10); return isNaN(n) ? null : n; } },
+  f2:   { f: v => (+v).toFixed(2),            e: v => (+v).toFixed(2),
+          p: s => { const n = numOrNull(s); return n === null ? null : n; } },
+  num:  { f: v => (+v) + '%',                 e: v => String(+v),
+          p: s => { const n = numOrNull(s); return n === null ? null : n; } },
+  hex:  { f: v => String(v).toUpperCase(),    e: v => String(v).toUpperCase(),
+          p: s => { s = String(s).trim(); return isHexColor(s) ? s : null; } }
 };
 
 function startValEdit(btn) {
@@ -1467,7 +1481,13 @@ function startValEdit(btn) {
   const inp = document.createElement('input');
   inp.type = 'text';
   inp.className = 'val-input';
-  inp.value = String(getPath(cfg, key));
+  // 初始文本用「用户看到的那个数字」，而不是内部存储值（0.03 vs 3.0）
+  const cur = getPath(cfg, key);
+  inp.value = String(fmt.e ? fmt.e(cur) : cur);
+  if (slider && slider.min !== '' && slider.max !== '') {
+    inp.title = `可填 ${fmt.f(parseFloat(slider.min))} ~ ${fmt.f(parseFloat(slider.max))}`;
+    inp.placeholder = inp.title;
+  }
   lab.appendChild(inp);
   btn.style.visibility = 'hidden';
   inp.focus(); inp.select();
@@ -1482,7 +1502,13 @@ function startValEdit(btn) {
     let v = fmt.p(raw);
     if (v === null) { scheduleRender(); return; }      // 解析失败 = 取消
     if (slider && slider.min !== '' && slider.max !== '') {
-      v = clampN(v, parseFloat(slider.min), parseFloat(slider.max));
+      const lo = parseFloat(slider.min), hi = parseFloat(slider.max);
+      const clamped = clampN(v, lo, hi);
+      // 超范围时明确告知，别静默改值让人以为「输入没反应」
+      if (Math.abs(clamped - v) > 1e-9) {
+        toast(`超出范围：可填 ${fmt.f(lo)} ~ ${fmt.f(hi)}，已按 ${fmt.f(clamped)} 处理`);
+      }
+      v = clamped;
       slider.value = v;
     }
     setPath(cfg, key, v);
