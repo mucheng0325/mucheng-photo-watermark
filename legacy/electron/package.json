@@ -1,0 +1,60 @@
+{
+  "name": "exif-cam-watermark",
+  "productName": "暮呈照片水印工作台",
+  "version": "1.0.0",
+  "description": "暮呈照片水印工作台 —— 自动读取 EXIF 相机参数并批量生成科技感水印",
+  "main": "electron/main.js",
+  "author": "https://github.com/mucheng0325/-.git",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win --x64",
+    "pack": "electron-builder --win --dir"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "build": {
+    "appId": "com.lingxing.exifcam",
+    "productName": "暮呈照片水印工作台",
+    "directories": {
+      "output": "release"
+    },
+    "afterPack": "tools/slim_dist.js",
+    "files": [
+      "index.html",
+      "css/**/*",
+      "js/**/*",
+      "electron/**/*",
+      "fonts/**/*",
+      "assets/**/*",
+      "!fonts/full-backup/**",
+      "tools/demo.jpg"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "暮呈照片水印工作台"
+    }
+  }
+}

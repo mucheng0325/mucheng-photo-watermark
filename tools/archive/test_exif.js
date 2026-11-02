@@ -1,0 +1,15 @@
+const path = require('path');
+const fs = require('fs');
+const root = path.join(__dirname, '..');
+const Exif = require(path.join(root, 'js/exif.js'));
+const Brands = require(path.join(root, 'js/brands.js'));
+const buf = fs.readFileSync(path.join(root, 'tools/demo.jpg'));
+const ab = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+const info = Exif.read(ab);
+console.log('解析结果:', JSON.stringify(info, null, 1));
+const brand = Brands.detect(info.make, info.model);
+console.log('品牌:', brand.name, '| 机型:', Brands.modelShort(info.make, info.model));
+const cfg = { params:{aperture:true,shutter:true,iso:true,focal:true}, paramOrder:['aperture','shutter','iso','focal'], sep:' · ' };
+console.log('参数行:', Exif.paramLine(info, cfg));
+console.log('带标签:', Exif.paramLine(info, Object.assign({}, cfg, {paramLabels:true})));
+console.log('APP1 长度:', Exif.extractApp1(ab)?.length);

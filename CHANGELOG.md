@@ -1,0 +1,81 @@
+# 更新日志
+
+本项目遵循语义化版本；当前处于 1.x，以功能演进为主。
+
+---
+
+## 1.1.0 — 2026-11-02
+
+**绿色免安装改造**
+
+- 新增 `src-tauri/src/paths.rs`：所有路径由 `current_exe()` 派生，无任何硬编码盘符；
+  支持 `ECW_ROOT_DIR` / `ECW_DATA_DIR` 显式覆盖
+- WebView2 用户数据目录钉死在 `<软件目录>/data/webview`（主窗口改为代码内创建，
+  使用 `WebviewWindowBuilder::data_directory`）
+- 新增 `store.rs`：`ecw.*` 设置镜像到 `data/config.json`（原子写、损坏自动降级、
+  坏文件另存 `.broken`）；启动时以快照为准回填，强杀不丢改动
+- 新增 `logger.rs`：日志写入 `data/logs/app.log`，2MB 轮转，安装 panic hook
+  （release 无控制台时的唯一现场）
+- 首次启动自动迁移旧版 `%LOCALAPPDATA%\com.linghang.exifcam\EBWebView` 数据（只读复制）
+- 数据目录不可写时弹窗说明并退出，不再静默失败
+- 设置新增「数据与存储」：显示真实数据目录 / 配置文件路径（可点击复制）、
+  一键打开目录、查看日志
+
+**目录结构重组（按开源项目规范）**
+
+- 前端源码收进 `src/`，并直接作为 `frontendDist` —— 取消 `tauri-dist/` 中间目录，
+  消灭「改了前端忘了同步」这一类问题
+- 脚本拆分为 `scripts/`（构建与资源生成）、`tests/`（验收）、`tools/`（临时诊断）
+- 早期 Electron 实现移入 `legacy/electron/`，不参与构建
+- 新增 `README.md`、`LICENSE`、`.gitignore`、`CHANGELOG.md`、`docs/`
+- 建立 Git 基线，便于后续回溯
+
+**命名统一**
+
+- 可执行文件名改为 `暮呈照片水印工作台.exe`（构建脚本重命名；
+  cargo bin 名保持 ASCII，原因见 `docs/03-构建指南.md`）
+- `productName` / `mainBinaryName` / 窗口标题 / 界面标题 / 文档全部统一
+
+**修复**
+
+- 发布目录缺少 `WebView2Loader.dll` 会导致 `0xC0000135` 静默退出（此前该 DLL
+  恰好在 `target/release` 里，容易被误认为单文件）
+- `Store.schedule` 直接把 `Store.flush` 交给 `setTimeout` 丢失 `this`，
+  导致镜像链路静默失效
+
+**许可证**
+
+- 采用自定义限制性条款：个人免费使用、转载需注明出处、禁止一切商业行为
+
+---
+
+## 1.0.0 — 2026-11-01
+
+**界面 v2 改造**
+
+- 极简克制风双主题（浅色 / 深色 / 跟随系统），CSS token 化，界面主题色与水印主题色分离
+- 三栏固定布局，页签 2×3，滑杆数值可点击精确输入
+- 导出进度模态：逐张进度、剩余时间、可取消、完成后打开输出目录
+- 快捷键：`Ctrl+O` / `Ctrl+E` / `←` `→` / `+` `-` / `0` `1`
+- 无边框自绘窗口：三颗细线按钮、顶栏拖窗、八向缩放热区
+
+**水印**
+
+- 新增「白色边框 · 底部题注」版式（白边宽度可调，白底自动换深色墨）
+- 悬浮卡片去掉描边与科技角标
+- 水印默认尺寸 1.50×
+- 品牌标识改用各厂商原厂配色，不再跟随界面主题色；品牌可手动指定
+- Logo 边缘处理重做：彩色原厂标识不描边、单色版按背景反方向补边，白边像素降为 0
+
+**体积**
+
+- 迁移到 Tauri（Rust + WebView2），主程序 11MB（Electron 版 223MB）
+- 内置字体子集化，20.7MB → 4.7MB
+
+**修复**
+
+- SVG 元素 `.hidden = true` 不反射到 attribute，`[hidden]` 选择器匹配不到，
+  导致主题图标三个同时显示
+- `[hidden]` 被同权重 `display` 规则顶回（本类问题共出现三次，已全局加
+  `[hidden]{display:none!important}`）
+- 两排色板共用 `.sw` 类名，启动时界面色板选中态被清空

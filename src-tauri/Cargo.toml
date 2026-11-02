@@ -1,0 +1,34 @@
+[package]
+name = "exif-cam"
+version = "1.1.0"
+description = "暮呈照片水印工作台 —— 绿色免安装的照片 EXIF 水印工具"
+edition = "2021"
+rust-version = "1.77"
+authors = ["mucheng0325 <https://github.com/mucheng0325>"]
+license = "LicenseRef-Mucheng-NC-1.0"
+publish = false
+
+# 注意：cargo 的 bin 名保持 ASCII（exif-cam）。用中文 bin 名虽然能编译通过，
+# 但 tauri-build 用 windres 生成的中文目标文件名会让产物在加载阶段直接退出
+# （进程进不到 main，也没有任何日志）。交付用的中文文件名由
+# scripts/build-win.js 在构建后重命名。
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["devtools"] }
+tauri-runtime = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+encoding_rs = "0.8"
+regex = "1"
+rfd = "0.15"
+
+[profile.release]
+opt-level = "s"
+lto = true
+strip = true
+codegen-units = 1
+panic = "abort"
+incremental = false

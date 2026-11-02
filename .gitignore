@@ -1,0 +1,40 @@
+# ---------- 构建产物 ----------
+node_modules/
+src-tauri/target/
+build-out/
+release/
+dist/
+tauri-dist/
+legacy/**/build-dist/
+legacy/**/build-release/
+*.exe
+*.msi
+*.nsis
+
+# ---------- 运行时数据（绿色版：程序目录下的 data/ 不纳入版本控制） ----------
+data/
+
+# ---------- 大体积源素材 ----------
+# 完整字体源（用 scripts/subset-fonts.py 生成 src/fonts 下的子集）
+resources/fonts-full/
+
+# ---------- 测试与截图输出 ----------
+tests/output/
+tests/ui-shots/
+tools/ui-shots/
+tools/brand-shots/
+tools/pos-shots/
+
+# ---------- 系统与编辑器 ----------
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+*.log
+*.tmp
+
+# 历史归档里的截图（保留脚本，不入库图片）
+tools/archive/screenshots-*/
+tools/archive/*.png
+tools/archive/*.jpg

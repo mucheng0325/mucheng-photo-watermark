@@ -1,0 +1,27 @@
+{
+  "name": "mucheng-photo-watermark",
+  "productName": "暮呈照片水印工作台",
+  "version": "1.1.0",
+  "private": true,
+  "description": "暮呈照片水印工作台 —— 绿色免安装的照片 EXIF 水印工具",
+  "author": "mucheng0325 <https://github.com/mucheng0325>",
+  "license": "SEE LICENSE IN LICENSE",
+  "keywords": [
+    "exif",
+    "watermark",
+    "photography",
+    "tauri",
+    "portable"
+  ],
+  "scripts": {
+    "build": "node scripts/build-win.js",
+    "dev": "node scripts/serve.js",
+    "test": "node tests/render.test.js && node tests/ui.test.js && node tests/app.test.js",
+    "test:render": "node tests/render.test.js",
+    "test:ui": "node tests/ui.test.js",
+    "test:app": "node tests/app.test.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

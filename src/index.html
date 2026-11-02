@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>暮呈照片水印工作台</title>
+<!-- 防首屏闪白：在样式表应用前就定好主题 -->
+<script>
+(function(){
+  try{
+    var m = localStorage.getItem('ecw.theme') || 'system';
+    var t = m === 'system'
+      ? (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+      : m;
+    document.documentElement.dataset.theme = t;
+    document.documentElement.style.colorScheme = t;
+  }catch(e){ document.documentElement.dataset.theme = 'dark'; }
+})();
+</script>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<!-- 无边框窗口的八向缩放手柄：仅 Tauri 模式启用 -->
+<div class="rz-layer" id="rzLayer" hidden>
+  <i data-rz="n"></i><i data-rz="s"></i><i data-rz="w"></i><i data-rz="e"></i>
+  <i data-rz="nw"></i><i data-rz="ne"></i><i data-rz="sw"></i><i data-rz="se"></i>
+</div>
+<div class="app">
+
+  <!-- 顶栏 -->
+  <header class="topbar">
+    <div class="logo-mark" id="logoMark">
+      <img class="logo-def only-light" src="assets/logo-light.png" alt="暮呈照片水印工作台">
+      <img class="logo-def only-dark" src="assets/logo-dark.png" alt="暮呈照片水印工作台">
+      <div class="logo-text"><span>照片水印工作台</span></div>
+    </div>
+
+    <div class="top-chips">
+      <span class="chip" id="chipCount">0 张素材</span>
+      <span class="chip" id="chipBrand">—</span>
+      <span class="chip ghost" id="chipPlat">浏览器模式</span>
+    </div>
+
+    <div class="top-actions">
+      <button class="btn" id="btnFiles" title="选择照片（Ctrl+O）">选择照片</button>
+      <button class="btn" id="btnFolder" title="选择文件夹">选择文件夹</button>
+      <button class="btn solid" id="btnExport" title="导出全部（Ctrl+E）">导出全部</button>
+      <button class="btn icon" id="btnHelp" title="使用说明">?</button>
+      <button class="btn icon" id="btnTheme" title="主题：跟随系统">
+        <svg id="thSys" viewBox="0 0 24 24" width="17" height="17"><rect x="3" y="5" width="18" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M9 20h6M12 17v3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <svg id="thLight" viewBox="0 0 24 24" width="17" height="17" hidden><circle cx="12" cy="12" r="4.2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M12 3v2.2M12 18.8V21M3 12h2.2M18.8 12H21M5.6 5.6l1.6 1.6M16.8 16.8l1.6 1.6M18.4 5.6l-1.6 1.6M7.2 16.8l-1.6 1.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <svg id="thDark" viewBox="0 0 24 24" width="17" height="17" hidden><path d="M20 13.5A8.2 8.2 0 0 1 10.5 4 8.2 8.2 0 1 0 20 13.5Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="btn icon" id="btnSettings" title="设置">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+    </div>
+
+    <!-- 自绘窗口控制：仅 Tauri 无边框模式显示 -->
+    <div class="win-ctrl" id="winCtrl" hidden>
+      <button class="win-btn" id="winMin" title="最小化" aria-label="最小化">
+        <svg viewBox="0 0 12 12" width="12" height="12"><path d="M2.6 6.4h6.8" fill="none" stroke="currentColor" stroke-width="1.15" stroke-linecap="round"/></svg>
+      </button>
+      <button class="win-btn" id="winMax" title="最大化" aria-label="最大化">
+        <svg class="ic-max" viewBox="0 0 12 12" width="12" height="12"><rect x="2.85" y="2.85" width="6.3" height="6.3" rx="1.1" fill="none" stroke="currentColor" stroke-width="1.15"/></svg>
+        <svg class="ic-restore" viewBox="0 0 12 12" width="12" height="12"><rect x="2.1" y="3.9" width="5.8" height="5.8" rx="1" fill="none" stroke="currentColor" stroke-width="1.05"/><path d="M4.3 3.9v-.8a1 1 0 0 1 1-1h4.4a1 1 0 0 1 1 1v4.2a1 1 0 0 1-1 1h-.8" fill="none" stroke="currentColor" stroke-width="1.05"/></svg>
+      </button>
+      <button class="win-btn close" id="winClose" title="关闭" aria-label="关闭">
+        <svg viewBox="0 0 12 12" width="12" height="12"><path d="M3.3 3.3l5.4 5.4M8.7 3.3l-5.4 5.4" fill="none" stroke="currentColor" stroke-width="1.15" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="workarea">
+
+    <!-- 素材列表 -->
+    <aside class="panel col-list" id="colList">
+      <div class="panel-head">
+        <span>素材</span>
+        <span class="muted" id="listMeta">未导入</span>
+      </div>
+      <div class="file-list" id="fileList"></div>
+      <div class="dropzone" id="dropzone" role="button" tabindex="0" title="点击选择照片，或把照片/文件夹直接拖进来">
+        <div class="dz-inner">
+          <svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 16V4m0 0L7 9m5-5 5 5M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          <span>拖入照片或文件夹</span>
+          <small class="dz-tip">点击选择照片，或<span class="dz-link" id="dzFolder">选择文件夹</span></small>
+        </div>
+      </div>
+      <div class="dz-overlay">松开以导入照片</div>
+    </aside>
+
+    <!-- 预览舞台 -->
+    <section class="stage">
+      <div class="stage-head">
+        <span>实时预览</span>
+        <span class="muted" id="previewMeta">—</span>
+      </div>
+      <div class="canvas-wrap" id="canvasWrap">
+        <div class="cv-holder" id="cvHolder"><canvas id="preview"></canvas></div>
+        <div class="zoom-hud" id="zoomHud">
+          <button class="zh-btn" id="zoomOut" title="缩小（-）">−</button>
+          <button class="zh-btn wide" id="zoomFit" title="适配窗口（0）">适配</button>
+          <button class="zh-btn" id="zoomIn" title="放大（+）">+</button>
+          <button class="zh-btn wide" id="zoomOne" title="原始像素（1）">1:1</button>
+          <span class="zh-pct" id="zoomPct">100%</span>
+        </div>
+        <div class="empty" id="hint">
+          <div class="empty-ring"></div>
+          <p>导入照片后，水印在此实时合成</p>
+          <small>支持 JPG / PNG；JPG 自动读取 EXIF 相机参数</small>
+        </div>
+      </div>
+      <div class="stage-foot">
+        <button class="btn ghost sm" id="btnPrev" title="上一张（←）">◀ 上一张</button>
+        <span class="muted" id="fileInfo">—</span>
+        <span class="muted" id="zoomInfo">100%</span>
+        <button class="btn ghost sm" id="btnNext" title="下一张（→）">下一张 ▶</button>
+      </div>
+    </section>
+
+    <!-- 控制面板 -->
+    <aside class="panel col-ctrl">
+      <div class="tabs" id="tabs">
+        <button class="tab active" data-tab="layout">版式</button>
+        <button class="tab" data-tab="text">文字</button>
+        <button class="tab" data-tab="params">参数</button>
+        <button class="tab" data-tab="brand">品牌</button>
+        <button class="tab" data-tab="copy">版权</button>
+        <button class="tab" data-tab="out">输出</button>
+      </div>
+
+      <div class="tab-body">
+
+        <!-- 版式 -->
+        <div class="pane active" data-pane="layout">
+          <div class="field">
+            <label>布局模板</label>
+            <div class="layout-grid" id="layoutGrid">
+              <button class="layout-btn active" data-layout="card">
+                <span class="mini card"></span><em>悬浮卡片</em>
+              </button>
+              <button class="layout-btn" data-layout="banner">
+                <span class="mini banner"></span><em>底部通栏</em>
+              </button>
+              <button class="layout-btn" data-layout="side">
+                <span class="mini side"></span><em>右侧竖排</em>
+              </button>
+              <button class="layout-btn" data-layout="minimal">
+                <span class="mini minimal"></span><em>四角极简</em>
+              </button>
+              <button class="layout-btn wide" data-layout="frame">
+                <span class="mini frame"></span><em>白色边框 · 底部题注</em>
+              </button>
+            </div>
+          </div>
+
+          <div class="field" data-lay="frame">
+            <label>白色边框宽度 <button class="val" id="vFrame" data-cfg-edit="framePct" data-fmt="pct1">3.0%</button></label>
+            <input type="range" data-cfg="framePct" min="0.008" max="0.08" step="0.002" value="0.03">
+            <small class="muted">照片四周加一圈白边，水印落在底部那条白边上；底部留白随边框宽度等比加高。白底上文字与 Logo 会自动转成深色，保证可读</small>
+          </div>
+
+          <div class="field">
+            <label>水印位置</label>
+            <div class="pos-grid" id="posGrid">
+              <button data-pos="top-left" title="左上"></button>
+              <button data-pos="top-center" title="顶部居中"></button>
+              <button data-pos="top-right" title="右上"></button>
+              <button data-pos="middle-left" title="左侧居中"></button>
+              <button data-pos="center" title="正中"></button>
+              <button data-pos="middle-right" title="右侧居中"></button>
+              <button data-pos="bottom-left" title="左下"></button>
+              <button data-pos="bottom-center" title="底部居中"></button>
+              <button data-pos="bottom-right" title="右下"></button>
+            </div>
+            <small class="muted">九宫格定位：任意位置的 Logo 尺寸、竖线长度与字号完全一致；白色边框版式取横向档位（左 / 中 / 右），纵向固定在底部白区</small>
+          </div>
+
+          <div class="field">
+            <label>水印主题色</label>
+            <div class="swatches" id="swatches">
+              <button class="sw active" style="--c:#35E0F0"></button>
+              <button class="sw" style="--c:#7C5CFF"></button>
+              <button class="sw" style="--c:#C8A45C"></button>
+              <button class="sw" style="--c:#4ADE80"></button>
+              <button class="sw" style="--c:#FF4D6D"></button>
+              <button class="sw" style="--c:#F5F5F7"></button>
+              <input type="color" id="accentPicker" value="#35E0F0" title="自定义颜色">
+            </div>
+            <small class="muted">只作用于导出图像；界面主题色在「设置」中单独配置，两者互不影响</small>
+          </div>
+
+          <div class="field" data-lay="card banner side minimal">
+            <label>背景样式</label>
+            <div class="seg" id="bgSeg">
+              <button data-cfg="bgStyle" data-val="glass" class="on">玻璃</button>
+              <button data-cfg="bgStyle" data-val="solid">纯色</button>
+              <button data-cfg="bgStyle" data-val="none">无底</button>
+            </div>
+          </div>
+
+          <div class="field" data-lay="card banner side minimal">
+            <label>不透明度 <button class="val" id="vOpacity" data-cfg-edit="opacity" data-fmt="pct">55%</button></label>
+            <input type="range" data-cfg="opacity" min="0" max="0.95" step="0.01" value="0.55">
+          </div>
+
+          <div class="field" data-lay="card side">
+            <label>圆角 <button class="val" id="vRadius" data-cfg-edit="radius" data-fmt="int">16</button></label>
+            <input type="range" data-cfg="radius" min="0" max="40" step="1" value="16">
+          </div>
+
+          <div class="field" data-lay="card banner side minimal">
+            <label>边距 <button class="val" id="vPad" data-cfg-edit="padPct" data-fmt="pct1">3.5%</button></label>
+            <input type="range" data-cfg="padPct" min="0.01" max="0.12" step="0.005" value="0.035">
+          </div>
+
+          <div class="field">
+            <label>水印大小 <button class="val" id="vFont" data-cfg-edit="fontScale" data-fmt="x2">1.50×</button></label>
+            <input type="range" data-cfg="fontScale" min="0.5" max="2.6" step="0.05" value="1.5">
+            <small class="muted">Logo、字号、竖线、内边距同步等比缩放；1.50× 为当前默认尺寸</small>
+          </div>
+
+          <div class="field two">
+            <div>
+              <label>水平偏移 <button class="val" id="vDX" data-cfg-edit="offsetX" data-fmt="num">0%</button></label>
+              <input type="range" data-cfg="offsetX" min="-12" max="12" step="0.5" value="0">
+            </div>
+            <div>
+              <label>垂直偏移 <button class="val" id="vDY" data-cfg-edit="offsetY" data-fmt="num">0%</button></label>
+              <input type="range" data-cfg="offsetY" min="-12" max="12" step="0.5" value="0">
+            </div>
+          </div>
+        </div>
+
+        <!-- 文字 -->
+        <div class="pane" data-pane="text">
+          <div class="field">
+            <label>字体 <button class="val" id="vFontName">阿里巴巴普惠体</button></label>
+            <button class="fp-trigger" id="fpTrigger" type="button">
+              <span class="fp-current" id="fpLabel">阿里巴巴普惠体 3.0</span>
+              <span class="fp-caret"></span>
+            </button>
+            <select data-cfg="fontFamily" id="fontSelect" hidden>
+              <optgroup label="内置（随应用分发，导出稳定）">
+                <option value="alibaba">阿里巴巴普惠体 3.0（默认）</option>
+                <option value="system">系统黑体（Segoe UI / 微软雅黑）</option>
+                <option value="serif">宋体 / 思源宋体</option>
+                <option value="mono">等宽（科技感数字）</option>
+              </optgroup>
+              <optgroup label="本机字体库" id="localFontGroup"></optgroup>
+            </select>
+            <div class="font-preview" id="fontPreview">135mm · f/1.8 · 1/200s · ISO400 · 珠海</div>
+            <small class="muted" id="fontHint">正在读取本机字体库…</small>
+          </div>
+
+          <div class="field">
+            <label>文字颜色</label>
+            <div class="color-row">
+              <label class="color-cell">
+                <span>主行</span>
+                <input type="color" data-cfg="textColor" value="#FFFFFF">
+              </label>
+              <label class="color-cell">
+                <span>副行</span>
+                <input type="color" data-cfg="subColor" value="#DCE6F3">
+              </label>
+            </div>
+          </div>
+
+          <div class="field two">
+            <div>
+              <label>主字号 <button class="val" id="vMain" data-cfg-edit="mainSize" data-fmt="x2">1.00×</button></label>
+              <input type="range" data-cfg="mainSize" min="0.5" max="2.2" step="0.05" value="1">
+            </div>
+            <div>
+              <label>副字号 <button class="val" id="vSub" data-cfg-edit="subSize" data-fmt="x2">1.00×</button></label>
+              <input type="range" data-cfg="subSize" min="0.5" max="2.2" step="0.05" value="1">
+            </div>
+          </div>
+
+          <div class="field">
+            <label>主行字重</label>
+            <div class="seg" id="weightSeg">
+              <button data-cfg="mainWeight" data-val="400">常规</button>
+              <button data-cfg="mainWeight" data-val="500">中等</button>
+              <button data-cfg="mainWeight" data-val="600" class="on">半粗</button>
+              <button data-cfg="mainWeight" data-val="700">粗体</button>
+            </div>
+          </div>
+
+          <div class="field two">
+            <div>
+              <label>字间距 <button class="val" id="vTrack" data-cfg-edit="textTrack" data-fmt="f2">0.00</button></label>
+              <input type="range" data-cfg="textTrack" min="0" max="0.3" step="0.01" value="0">
+            </div>
+            <div>
+              <label>副行透明度 <button class="val" id="vSubOp" data-cfg-edit="subOpacity" data-fmt="pct">78%</button></label>
+              <input type="range" data-cfg="subOpacity" min="0.2" max="1" step="0.02" value="0.78">
+            </div>
+          </div>
+
+          <label class="switch">
+            <input type="checkbox" data-cfg="numMono">
+            <span>参数数字使用等宽字体</span>
+          </label>
+          <label class="switch">
+            <input type="checkbox" data-cfg="textShadow" checked>
+            <span>文字投影（压在亮部更清晰）</span>
+          </label>
+          <label class="switch">
+            <input type="checkbox" data-cfg="paramLines">
+            <span>参数逐项分行显示</span>
+          </label>
+
+          <div class="field">
+            <label>自定义文字（可选，覆盖自动内容）</label>
+            <textarea data-cfg="textBlock" rows="3" placeholder="第一行为主行，其余为副行；每行一条&#10;例如：&#10;53mm · f/1.8 · 1/200s · ISO400&#10;摄于珠海 · 2026 秋"></textarea>
+            <small class="muted">留空则自动使用 EXIF 参数行 + 机型/版权行</small>
+          </div>
+        </div>
+
+        <!-- 参数 -->
+        <div class="pane" data-pane="params">
+          <div class="field">
+            <label>显示项</label>
+            <div class="checks">
+              <label><input type="checkbox" data-cfg="params.aperture" checked><span>光圈</span></label>
+              <label><input type="checkbox" data-cfg="params.shutter" checked><span>快门</span></label>
+              <label><input type="checkbox" data-cfg="params.iso" checked><span>ISO</span></label>
+              <label><input type="checkbox" data-cfg="params.focal" checked><span>焦距</span></label>
+              <label><input type="checkbox" data-cfg="params.lens"><span>镜头</span></label>
+              <label><input type="checkbox" data-cfg="params.date"><span>拍摄时间</span></label>
+            </div>
+          </div>
+
+          <div class="field">
+            <label>分隔符</label>
+            <select data-cfg="sep">
+              <option value=" · ">· 圆点</option>
+              <option value=" | ">| 竖线</option>
+              <option value="  ">空格</option>
+              <option value=" / ">/ 斜杠</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label>日期格式</label>
+            <select data-cfg="dateStyle">
+              <option value="dot">2026.11.01</option>
+              <option value="iso">2026-11-01</option>
+              <option value="slash">2026/11/01</option>
+              <option value="full">2026.11.01 16:30</option>
+            </select>
+          </div>
+
+          <label class="switch">
+            <input type="checkbox" data-cfg="paramLabels">
+            <span>参数前加中文标签（光圈 f/1.8）</span>
+          </label>
+          <label class="switch">
+            <input type="checkbox" data-cfg="focalEq">
+            <span>焦距显示 35mm 等效</span>
+          </label>
+          <label class="switch">
+            <input type="checkbox" data-cfg="showModel" checked>
+            <span>显示机型</span>
+          </label>
+
+          <div class="field">
+            <label>参数行覆盖（可选）</label>
+            <input type="text" data-cfg="paramOverride" placeholder="图片无 EXIF 时，用这里的手写参数行">
+          </div>
+        </div>
+
+        <!-- 品牌 -->
+        <div class="pane" data-pane="brand">
+          <div class="brand-wrap" id="brandWrap">
+            <div class="brand-card" id="brandCard" role="button" tabindex="0" title="点击选择水印品牌">
+              <div class="brand-badge" id="brandBadge">◎</div>
+              <div class="brand-meta">
+                <b id="brandName">未识别</b>
+                <span id="brandModel" class="muted">导入照片后自动识别</span>
+              </div>
+              <span class="brand-caret">▾</span>
+            </div>
+            <div class="fp-pop brand-pop" id="brandPop" hidden></div>
+          </div>
+
+          <div class="field">
+            <label>Logo 样式</label>
+            <div class="seg" id="logoModeSeg">
+              <button data-cfg="logoMode" data-val="official" class="on">官方</button>
+              <button data-cfg="logoMode" data-val="wordmark">字标</button>
+              <button data-cfg="logoMode" data-val="badge">方牌</button>
+              <button data-cfg="logoMode" data-val="plain">纯文字</button>
+              <button data-cfg="logoMode" data-val="custom">自定义</button>
+            </div>
+          </div>
+
+          <div class="field">
+            <label>官方标识配色</label>
+            <select data-cfg="logoVariant">
+              <option value="white">白色（深色水印通用）</option>
+              <option value="brand">品牌原色（保留彩色）</option>
+              <option value="accent">跟随主题色</option>
+              <option value="dark">深色（浅色背景专用）</option>
+              <option value="auto">智能（按背景亮度自动）</option>
+            </select>
+            <small class="muted">内置 26 个平台的官方标识；佳能红、尼康黄、柯达黄等彩色标识在选择「品牌原色」时保留原色</small>
+          </div>
+
+          <div class="field two">
+            <div>
+              <label>对比描边 <button class="val" id="vEdge" data-cfg-edit="logoEdge" data-fmt="f2">0.60</button></label>
+              <input type="range" data-cfg="logoEdge" min="0" max="1.5" step="0.05" value="0.6">
+            </div>
+            <div>
+              <label>Logo 投影 <button class="val" id="vLgShadow" data-cfg-edit="logoShadow" data-fmt="f2">0.60</button></label>
+              <input type="range" data-cfg="logoShadow" min="0" max="1.5" step="0.05" value="0.6">
+            </div>
+          </div>
+
+          <div class="field">
+            <label>Logo 尺寸 <button class="val" id="vLogo" data-cfg-edit="logoSize" data-fmt="x2">1.00×</button></label>
+            <input type="range" data-cfg="logoSize" min="0.4" max="2.2" step="0.05" value="1">
+          </div>
+
+          <label class="switch">
+            <input type="checkbox" data-cfg="showLogo" checked>
+            <span>显示品牌 Logo</span>
+          </label>
+          <label class="switch">
+            <input type="checkbox" data-cfg="logoUpper" checked>
+            <span>字标使用全大写</span>
+          </label>
+
+          <!-- 分隔竖线 -->
+          <div class="field">
+            <label>分隔竖线</label>
+            <div class="seg" id="sepColorSeg">
+              <button data-cfg="sepColorMode" data-val="accent" class="on">主题色</button>
+              <button data-cfg="sepColorMode" data-val="custom">自定义</button>
+              <button data-cfg="sepColorMode" data-val="brand">品牌色</button>
+              <button data-cfg="sepColorMode" data-val="text">文字色</button>
+            </div>
+          </div>
+
+          <div class="field" id="sepColorField">
+            <label>竖线颜色 <button class="val" id="vSepColor" data-cfg-edit="sepColor" data-fmt="hex">#35E0F0</button></label>
+            <div class="color-row">
+              <label class="color-cell wide">
+                <input type="color" data-cfg="sepColor" value="#35E0F0">
+              </label>
+              <button class="pill" data-sep-preset="#FFFFFF" style="--c:#FFFFFF">白</button>
+              <button class="pill" data-sep-preset="#35E0F0" style="--c:#35E0F0">青</button>
+              <button class="pill" data-sep-preset="#C8A45C" style="--c:#C8A45C">金</button>
+              <button class="pill" data-sep-preset="#FF4D6D" style="--c:#FF4D6D">红</button>
+            </div>
+          </div>
+
+          <div class="field two">
+            <div>
+              <label>线宽 <button class="val" id="vSepW" data-cfg-edit="sepWidth" data-fmt="x2">1.00×</button></label>
+              <input type="range" data-cfg="sepWidth" min="0.5" max="4" step="0.1" value="1">
+            </div>
+            <div>
+              <label>线长 <button class="val" id="vSepH" data-cfg-edit="sepHeight" data-fmt="pct">82%</button></label>
+              <input type="range" data-cfg="sepHeight" min="0.3" max="1" step="0.02" value="0.82">
+            </div>
+          </div>
+
+          <div class="field two">
+            <div>
+              <label>左右间距 <button class="val" id="vSepGap" data-cfg-edit="sepGap" data-fmt="x2">1.00×</button></label>
+              <input type="range" data-cfg="sepGap" min="0" max="3" step="0.05" value="1">
+            </div>
+            <div>
+              <label>透明度 <button class="val" id="vSepOp" data-cfg-edit="sepOpacity" data-fmt="pct">85%</button></label>
+              <input type="range" data-cfg="sepOpacity" min="0.05" max="1" step="0.05" value="0.85">
+            </div>
+          </div>
+
+          <div class="field">
+            <label>竖线样式</label>
+            <div class="seg" id="sepStyleSeg">
+              <button data-cfg="sepStyle" data-val="gradient" class="on">渐变</button>
+              <button data-cfg="sepStyle" data-val="solid">纯色</button>
+              <button data-cfg="sepStyle" data-val="dash">断线</button>
+            </div>
+          </div>
+
+          <label class="switch">
+            <input type="checkbox" data-cfg="sepShow" checked>
+            <span>显示 Logo 与文字之间的竖线</span>
+          </label>
+
+          <div class="field">
+            <label>品牌专属 Logo（自定义样式时生效）</label>
+            <div class="row">
+              <button class="btn ghost sm" id="btnUploadLogo">上传 PNG/SVG</button>
+              <button class="btn ghost sm" id="btnClearLogo">清除</button>
+            </div>
+            <small class="muted">Logo 按品牌分别保存，换机型自动切换</small>
+          </div>
+        </div>
+
+        <!-- 版权 -->
+        <div class="pane" data-pane="copy">
+          <div class="field">
+            <label>版权人信息</label>
+            <input type="text" data-cfg="copyright" placeholder="© 2026 你的名字 / 工作室">
+            <div class="row wrap" id="copyPresets">
+              <button class="pill" data-copytpl="© {year}">© 年份</button>
+              <button class="pill" data-copytpl="© {year} {name}">© 个人</button>
+              <button class="pill" data-copytpl="Shot on {model}">Shot on 机型</button>
+              <button class="pill" data-copytpl="">清空</button>
+            </div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" data-cfg="showCopyright" checked>
+            <span>显示版权信息</span>
+          </label>
+          <div class="field">
+            <label>整行覆盖（可选）</label>
+            <input type="text" data-cfg="subOverride" placeholder="完全手写副标题行，如：摄于珠海 · 2026 秋">
+            <small class="muted">填写后替换「机型 + 版权」这一整行</small>
+          </div>
+        </div>
+
+        <!-- 输出 -->
+        <div class="pane" data-pane="out">
+          <div class="field">
+            <label>输出质量 <button class="val" id="vQuality" data-cfg-edit="outQuality" data-fmt="pct">92%</button></label>
+            <input type="range" data-cfg="outQuality" min="0.6" max="1" step="0.01" value="0.92">
+          </div>
+          <div class="field">
+            <label>最长边</label>
+            <select data-cfg="outMaxEdge">
+              <option value="0">保持原尺寸</option>
+              <option value="4096">4096 px</option>
+              <option value="2560">2560 px</option>
+              <option value="1920">1920 px</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>文件名前缀</label>
+            <input type="text" data-cfg="outPrefix" value="wm_">
+          </div>
+          <label class="switch">
+            <input type="checkbox" data-cfg="keepExif" checked>
+            <span>保留原 EXIF 元数据</span>
+          </label>
+          <div class="field">
+            <label>输出目录</label>
+            <button class="btn ghost sm" id="btnChangeDir" style="width:100%">选择 / 更换输出文件夹</button>
+            <small class="muted">首次导出时询问，之后沿用同一目录</small>
+          </div>
+
+          <div class="field">
+            <label>配置预设</label>
+            <div class="row wrap" id="presetRow">
+              <button class="pill" data-preset="tech">手机科技·青</button>
+              <button class="pill" data-preset="leica">徕卡黑金</button>
+              <button class="pill" data-preset="cyber">赛博紫</button>
+              <button class="pill" data-preset="clean">极简白</button>
+            </div>
+            <div class="row">
+              <button class="btn ghost sm" id="btnSavePreset">保存当前为预设</button>
+              <button class="btn ghost sm" id="btnReset">恢复默认</button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </aside>
+  </main>
+
+  <footer class="statusbar">
+    <span class="dot-live"></span>
+    <span id="statusText">就绪 · 拖入照片开始</span>
+    <span class="spacer"></span>
+    <span class="muted" id="engineInfo">Canvas 合成引擎</span>
+  </footer>
+</div>
+
+<input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp" multiple hidden>
+<input type="file" id="folderInput" webkitdirectory directory multiple hidden>
+<input type="file" id="logoInput" accept="image/png,image/svg+xml,image/jpeg" hidden>
+
+<!-- 字体选择浮层（自绘，不依赖系统下拉，条目直接用对应字体渲染） -->
+<div class="fp-pop" id="fpPop" hidden>
+  <div class="fp-search">
+    <input type="text" id="fontSearch" placeholder="搜索字体：雅黑 / Noto / 思源…" autocomplete="off" spellcheck="false">
+  </div>
+  <div class="fp-scope" id="fpScope">
+    <button type="button" class="fp-scope-btn on" data-scope="zh">中文字体<b id="fpScopeZh">—</b></button>
+    <button type="button" class="fp-scope-btn" data-scope="all">全部<b id="fpScopeAll">—</b></button>
+  </div>
+  <div class="fp-list" id="fpList" role="listbox" aria-label="选择字体"></div>
+  <div class="fp-foot" id="fpFoot">—</div>
+</div>
+
+<!-- 通用下拉浮层 -->
+<div class="fp-pop pick" id="pickPop" hidden>
+  <div class="fp-list" id="pickList" role="listbox"></div>
+</div>
+
+<!-- 导出进度 -->
+<div class="modal" id="exportModal">
+  <div class="modal-box">
+    <h3>正在导出</h3>
+    <div class="ex-file" id="exFile">—</div>
+    <div class="ex-bar"><i id="exBar"></i></div>
+    <div class="ex-meta"><span id="exCount">0 / 0</span><span id="exEta">剩余 —</span></div>
+    <div class="row">
+      <button class="btn" id="btnCancelExport">取消导出</button>
+      <button class="btn solid" id="btnOpenOutDir" hidden>打开输出文件夹</button>
+    </div>
+  </div>
+</div>
+
+<!-- 帮助 -->
+<div class="modal" id="helpModal">
+  <div class="modal-box">
+    <h3>使用说明</h3>
+    <ol>
+      <li>「选择照片 / 文件夹」（Ctrl+O）或直接拖入 → 自动读取 EXIF 相机参数；导出 Ctrl+E，←/→ 切换照片</li>
+      <li>字体可直接选本机字体库中的任意字体，列表里每一行都用该字体自身字形预览；默认只列中文字体（点「全部」看日文 / 西文），内置普惠体随应用分发，换机也一致</li>
+      <li>右侧六个标签页：版式（含九宫格位置与水印大小）、文字、参数、品牌（含分隔竖线）、版权、输出；滑杆右侧的数值可以点击后键入精确值</li>
+      <li>版式里的「白色边框 · 底部题注」会在照片外圈加一圈白边、并在底部白边上写参数，白边宽度可调；白底上文字与 Logo 自动转深色</li>
+      <li>竖线颜色可选主题色 / 自定义 / 品牌色 / 文字色；文字颜色、字号、字重、字距均可调</li>
+      <li>界面主题与界面主题色在顶栏「设置」中调整，与水印主题色（版式页签）互相独立</li>
+      <li>预览区：滚轮缩放、按住拖动平移、双击复位，「1:1」按原始像素查看，快捷键 +/-/0/1</li>
+    </ol>
+    <p class="muted">提示：图片不存在 EXIF 时，可在「参数 → 参数行覆盖」手写内容。</p>
+    <button class="btn solid" id="btnCloseHelp">知道了</button>
+  </div>
+</div>
+
+<!-- 设置抽屉 -->
+<div class="drawer-backdrop" id="settingsBackdrop"></div>
+<aside class="drawer" id="settingsDrawer" aria-label="设置">
+  <div class="drawer-head">
+    <span>设置</span>
+    <button class="btn icon" id="btnCloseSettings" title="关闭（Esc）">✕</button>
+  </div>
+  <div class="drawer-body">
+
+    <section class="set-section">
+      <h4>外观</h4>
+      <div class="field">
+        <label>主题模式</label>
+        <div class="seg" id="themeSeg">
+          <button data-theme-mode="system">跟随系统</button>
+          <button data-theme-mode="light">浅色</button>
+          <button data-theme-mode="dark">深色</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>界面主题色</label>
+        <div class="swatches" id="uiSwatches"></div>
+        <div class="color-row" style="margin-top:8px">
+          <label class="color-cell">
+            <span>自定义</span>
+            <input type="color" id="uiColorPicker" value="#4F6BED" title="自定义界面主题色">
+          </label>
+        </div>
+        <small class="muted">仅作用于界面，不影响导出图像；水印主题色在「版式」页签单独设置</small>
+      </div>
+    </section>
+
+    <section class="set-section">
+      <h4>数据与存储</h4>
+      <dl class="about-list">
+        <div><dt>数据目录</dt><dd class="about-url" id="dataPath">—</dd></div>
+        <div><dt>配置文件</dt><dd class="about-url" id="cfgPath">—</dd></div>
+      </dl>
+      <div class="row-btns">
+        <button class="btn ghost sm" id="btnOpenData">打开数据目录</button>
+        <button class="btn ghost sm" id="btnOpenLog">查看日志</button>
+      </div>
+      <small class="muted">绿色免安装：配置、日志与缓存全部存放在程序所在目录的 data 文件夹，不写入 C 盘与系统用户目录；整个文件夹拷走即可换机继续用</small>
+    </section>
+
+    <section class="set-section">
+      <h4>关于</h4>
+      <dl class="about-list">
+        <div><dt>产品名</dt><dd>暮呈照片水印工作台</dd></div>
+        <div><dt>著作权人</dt><dd class="about-url">https://github.com/mucheng0325/-.git</dd></div>
+        <div><dt>版本号</dt><dd>1.1.0</dd></div>
+        <div><dt>技术信息</dt><dd id="aboutTech">Tauri 2 · WebView2 · Canvas 合成引擎 · 本地离线</dd></div>
+      </dl>
+    </section>
+
+    <section class="set-section">
+      <h4>免责声明</h4>
+      <details class="disclaimer">
+        <summary>展开阅读</summary>
+        <p>本软件完全本地运行，照片与 EXIF 数据不上传任何服务器；用户对导出内容及其使用行为自行负责；相机品牌标识仅用于二次创作展示，相关版权归各厂商所有；软件按「现状」提供，不对使用后果承担任何责任。</p>
+      </details>
+    </section>
+
+  </div>
+</aside>
+
+<script src="js/api-bridge.js"></script>
+<script src="js/demo-image.js"></script>
+<script src="js/exif.js"></script>
+<script src="js/logos.js"></script>
+<script src="js/brands.js"></script>
+<script src="js/render.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
