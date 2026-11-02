@@ -42,6 +42,8 @@
   恰好在 `target/release` 里，容易被误认为单文件）
 - `Store.schedule` 直接把 `Store.flush` 交给 `setTimeout` 丢失 `this`，
   导致镜像链路静默失效
+- 设置「关于 · 著作权人」更新为当前仓库地址
+  `https://github.com/mucheng0325/mucheng-photo-watermark`（原地址已失效）
 
 **许可证**
 
